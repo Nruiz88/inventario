@@ -1,0 +1,47 @@
+# dependencies
+node_modules/
+
+# Next.js
+/.next/
+/out/
+next-env.d.ts
+*.tsbuildinfo
+
+# producción
+/build
+
+# ---------------------------------------------------------------------
+# Entorno
+# ---------------------------------------------------------------------
+# `.env*` primero, y LUEGO la excepción de `.env.example`.
+#
+# El orden importa: las reglas de .gitignore se aplican en el orden en
+# que están, y sin repetir la excepción aquí, el segundo `.env*` volvería
+# a tapar la de arriba.
+#
+# Por qué la excepción: `.env.example` es la documentación de qué
+# variables hacen falta y de qué es cada una. Sin él, nadie sabe qué
+# poner en Coolify, y un servicio sin SERVICE_SECRET parece que
+# funciona mientras no canjea ningún ticket.
+#
+# Lo que NO puede pasar es que un `.env` real acabe subido. Eso lo
+# comprueba `npm run conexiones`, que avisa si hay alguno en el repo.
+.env*
+!.env.example
+
+# variables con la contraseña de la base dentro
+*.url
+
+# Sistema
+.DS_Store
+Thumbs.db
+*.pem
+
+# logs
+npm-debug.log*
+yarn-error.log*
+logs/
+
+# Salida de las pruebas de humo: son capturas con datos del cliente de
+# prueba, así que además de ruido no deberían subirse.
+capturas/
