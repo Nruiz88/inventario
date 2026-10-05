@@ -1,5 +1,6 @@
 import { cookies } from "next/headers";
 import crypto from "crypto";
+import { NextResponse } from "next/server";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { getAdmin, getScoped } from "@/lib/db";
 
@@ -218,12 +219,28 @@ export function clienteDeLaSesion(sesion: Sesion): SupabaseClient | null {
 }
 
 /**
- * Exige sesión. Para las páginas y rutas del panel.
+ * Exige sesión. Para las PÁGINAS.
  *
  * Lanza `SIN_SESION:<destino>` en vez de devolver un 401, porque quien
  * está sin sesión es una persona que acaba de pulsar un enlace, no una
- * máquina. El proxy o el manejador de errores lo convierte en una
- * redirección.
+ * máquina: lo que quiere es una redirección, no un 401.
+ *
+ * ⚠️  PARA LAS RUTAS DE API, USA `exigeSessionApi`
+ * ------------------------------------------------
+ * Este `throw` solo lo convierte alguien en una redirección, y en las
+ * páginas lo hace el proxy (que comprueba la cookie antes de llegar
+ * aquí). Para las rutas de API no hay quien lo convierta: el proxy deja
+ * pasar `/api` a propósito, porque un webhook la llama una máquina que
+ * no tiene cookie, y cada ruta decide en su interior.
+ *
+ * Medido: con este `throw` solo, `/api/resumen` sin sesión contestaba
+ * **500**, que es mentira. No es un error del servidor: es que no hay
+ * sesión. Y un 500 ensucia los logs con algo que no es una avería, que
+ * es justo lo que tapa averías de verdad.
+ *
+ * Ojo con el otro síntoma: la suscripción caducada lanza
+ * `SIN_SUSCRIPCION`, y ese mensaje tampoco distingue "caducada" de
+ * "nunca la tuvo". Ver `exigeSessionApi`.
  */
 export async function exigeSession(origen = "/"): Promise<Sesion> {
   const sesion = await getSession();
@@ -279,6 +296,65 @@ export async function tieneElModulo(clientId: string, moduleId: string): Promise
     return false;
   }
   return data === true;
+}
+
+/* =====================================================================
+   El guard de las rutas de API
+   ===================================================================== */
+
+/**
+ * Exige sesión EN UNA RUTA DE API, y devuelve la respuesta si falla.
+ *
+ * La diferencia con `exigeSession` es que aquí NO lanza: devuelve un
+ * 401 listo para devolver, porque una ruta de API no redirige a nadie.
+ * Un `fetch` que sigue una redirección a `/entrar` recibe HTML donde
+ * esperaba JSON, y el error que ve el que programa es `Unexpected token
+ * <`, que no dice nada de la sesión.
+ *
+ * Uso, y es la parte que hay que respetar:
+ *
+ *   const g = await exigeSessionApi();
+ *   if (g.error) return g.error;
+ *   const { sesion } = g;
+ *
+ * Ojo al nombre de la propiedad: es `error`, no `sesion` a null, para
+ * que quien se lo salte no compile. Un `const sesion = await
+ * getSession()` sin comprobar devuelve `undefined` y `sesion.clientId`
+ * revienta con un error que no menciona la sesión.
+ */
+export async function exigeSessionApi(
+  origen = "/"
+): Promise<{ sesion: Sesion; error: null } | { sesion: null; error: NextResponse }> {
+  const sesion = await getSession();
+
+  if (!sesion) {
+    /* 401 y no 403: 403 dice "no puedes aunque entres", 401 dice "no has
+       entrado". Es lo que espera un cliente HTTP, y lo que permite a un
+       `fetch` reintentar después de canjear el ticket. */
+    return {
+      sesion: null,
+      error: NextResponse.json(
+        { ok: false, error: "Sin sesión.", destino: origen },
+        { status: 401 }
+      ),
+    };
+  }
+
+  if (!esSesionDeSoporte(sesion) && !(await tieneElModulo(sesion.clientId, MODULO_ID))) {
+    /* 402, no 403. 402 es "payment required": el servicio está pagado y
+       este cliente no lo tiene. Es el único código que dice exactamente
+       eso, y evita el "accedes a algo que no puedes" que lleva a
+       pensar en un fallo de permisos en vez de en una suscripción. */
+    return {
+      sesion: null,
+      error: NextResponse.json(
+        { ok: false, error: "Este módulo no está activo en tu cuenta.", sinModulo: true },
+        { status: 402 }
+      ),
+    };
+  }
+
+  return { sesion, error: null };
 }
 
 /* =====================================================================

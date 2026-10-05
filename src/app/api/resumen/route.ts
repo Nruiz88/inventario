@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { exigeSession } from "@/lib/acceso/sesion";
+import { exigeSessionApi } from "@/lib/acceso/sesion";
 import { hoy, diasAtras } from "@/lib/dinero";
 
 /* =========================================================
@@ -46,7 +46,9 @@ import { hoy, diasAtras } from "@/lib/dinero";
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const sesion = await exigeSession("/");
+  const g = await exigeSessionApi("/");
+  if (g.error) return g.error;
+  const sesion = g.sesion;
 
   const db = createClient(
     process.env.SUPABASE_URL || "",

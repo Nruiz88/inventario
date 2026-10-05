@@ -16,20 +16,23 @@ const nextConfig: NextConfig = {
    * No se va a poner. La lentitud de un typecheck es un coste de un
    * minuto; un fallo de tipos en producción es un cliente que no puede
    * entrar.
+   *
+   * ⚠️  POR QUÉ YA NO HAY CLAVE `eslint`
+   * ------------------------------------
+   * Next 16 la eliminó de `NextConfig`. No es que dejara de comprobar:
+   * es que el lint ya no se ejecuta en el build, se ejecuta aparte
+   * (`next lint`). Antes, con `ignoreDuringBuilds: false`, los errores de
+   * ESLint cortaban la compilación; ahora hay que acordarse de correrlo,
+   * o no se mira.
+   *
+   * Y esto no es hipotético: `D:\webs\wweb\next.config.ts` tiene
+   * `ignoreBuildErrors: true`, así que el bot que está en producción
+   * desplega con los errores de tipos que quiera. Por eso este
+   * servicio los tiene en `false`: la diferencia entre los dos es
+   * deliberada.
    */
   typescript: {
     ignoreBuildErrors: false,
-  },
-
-  /* ⭐ LOS ERRORES DE ESLINT
-   * -------------------------
-   * Los errores (los que cortan la compilación) sí se miran. Los avisos no
-   * se usan como puerta: si lo fueran, la primera vez que un aviso venga
-   * de una librería de terceros, alguien pone `ignoreWarnings: true` y a
-   * partir de ahí no vuelve a mirar ninguno.
-   */
-  eslint: {
-    ignoreDuringBuilds: false,
   },
 };
 

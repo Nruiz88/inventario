@@ -8,20 +8,20 @@
     "start": "next start",
     "test": "vitest run",
     "test:watch": "vitest",
-
     "conexiones": "node scripts/conexiones.mjs",
-
     "migrate": "node db/migrate.mjs",
     "migrate:estado": "node db/migrate.mjs --estado",
     "revertir": "node db/revertir.mjs",
-    "test:base": "node db/test-reglas.js"
+    "test:base": "node db/test-reglas.js",
+    "test:entrada": "node db/test-entrada.mjs",
+    "dev:ticket": "node db/dev-ticket.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.0",
-    "next": "^15.0.0",
+    "next": "^16.3.8",
     "pg": "^8.12.0",
-    "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react": "^19.3.0",
+    "react-dom": "^19.3.0"
   },
   "devDependencies": {
     "@types/node": "^22.0.0",

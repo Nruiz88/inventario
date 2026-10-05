@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { exigeSession } from "@/lib/acceso/sesion";
+import { exigeSessionApi } from "@/lib/acceso/sesion";
 
 /* =========================================================
    GET/POST /api/productos
@@ -60,7 +60,9 @@ function dbDe(sesion: { accessToken: string }) {
 
 /* ── Listar ── */
 export async function GET(request: Request) {
-  const sesion = await exigeSession("/");
+  const g = await exigeSessionApi("/");
+  if (g.error) return g.error;
+  const sesion = g.sesion;
   const db = dbDe(sesion);
 
   const soloActivos = new URL(request.url).searchParams.get("todos") !== "1";
@@ -138,7 +140,9 @@ export async function GET(request: Request) {
 
 /* ── Crear ── */
 export async function POST(request: Request) {
-  const sesion = await exigeSession("/");
+  const g = await exigeSessionApi("/");
+  if (g.error) return g.error;
+  const sesion = g.sesion;
   const db = dbDe(sesion);
 
   let cuerpo: {
