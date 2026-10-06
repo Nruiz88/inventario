@@ -67,3 +67,9 @@ logs/
 # Salida de las pruebas de humo: son capturas con datos del cliente de
 # prueba, así que además de ruido no deberían subirse.
 capturas/
+
+# El montaje que hace db/probar-imagen.mjs para probar el bundle.
+# Es .next/standalone con public y static pegados, o sea cientos de MB
+# de ficheros generados que no tienen nada que ver en el repo.
+_imagen/
+_prueba/

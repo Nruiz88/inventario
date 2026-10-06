@@ -17,7 +17,8 @@
     "test:dashboard": "node db/test-dashboard.mjs",
     "dev:ticket": "node db/dev-ticket.mjs",
     "limpiar:pruebas": "node db/limpar-pruebas.js",
-    "abrir": "node db/abrir.mjs"
+    "abrir": "node db/abrir.mjs",
+    "test:imagen": "node db/probar-imagen.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.0",
