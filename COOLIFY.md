@@ -7,6 +7,18 @@
    Lo que hay aquí son fallos que pasaron de verdad en este proyecto. Los
    que no han pasado están en la documentación de Coolify.
 
+   ── ESTÁ DESPLEGADO ──
+   ------------------------
+   | | |
+   |---|---|
+   | URL | `https://inventario.panel-niconqn.duckdns.org` |
+   | App | `inventario` — `vu36zj9mmqnczlirdkdoifpv` |
+   | Build pack | `dockerfile` |
+   | Build | `npm run build` dentro del `Dockerfile`, no de Coolify |
+
+   Verificado con 28 comprobaciones contra el servicio real, firmado
+   el ticket con el código del panel: `empresa/db/probar-produccion.mjs`.
+
    ── EL ORDEN, Y POR QUÉ EN ESTE ──
    ---------------------------------
    1. Código en un repositorio, con remoto.
@@ -325,6 +337,232 @@ caliente y las variables vienen del entorno de Coolify, no de un
 fichero.
 
 ─────────────────────────────────────────────────────────────────────
+14. ⭐ EL HEALTH CHECK NECESITA wget EN LA IMAGEN
+─────────────────────────────────────────────────────────────────────
+
+Este falló tres despliegues seguidos, y el error no apunta a la causa.
+
+    Attempt 10 of 10 | Healthcheck status: "unhealthy"
+    Healthcheck logs: /bin/sh: curl: not found
+    wget: can't connect to remote host: Connection refused
+    New container is not healthy, rolling back to the old container.
+
+Lo que engaña: el aviso habla de la salud de la aplicación, y la
+aplicación estaba perfecta. Dos líneas más abajo, en el log del
+propio contenedor:
+
+    ▲ Next.js 16.3.8  Ready in 0ms  Network: http://0.0.0.0:3000
+
+Levantada y escuchando. Lo que falla es que **nadie puede
+preguntarle cómo está**, porque `node:22-alpine` no trae ni `curl`
+ni `wget`. Coolify hace diez intentos, los diez fallan por falta de
+herramienta —no por salud—, y deshace el despliegue.
+
+Se arregla con una línea en el `Dockerfile`:
+
+    RUN apk add --no-cache wget
+
+Cuándo aplica: a **cualquier** despliegue con build pack Dockerfile
+en Coolify. No es de esta aplicación. El bot y la web usan
+`railpack`, que trae sus propias herramientas, y por eso no lo
+sufren.
+
+Lo que sale después del arreglo, y merece la pena verlo:
+
+    Healthcheck logs: /bin/sh: curl: not found  | Return code: 0
+    Attempt 1 of 10 | Healthcheck status: "healthy"
+
+El `curl: not found` sigue ahí y ya no importa: Coolify cae al
+`wget`, que sí está, y la primera comprobación pasa.
+
+─────────────────────────────────────────────────────────────────────
+15. ⭐ LOS SECRETOS NO SON `buildtime`
+─────────────────────────────────────────────────────────────────────
+
+Al compilar, BuildKit avisa:
+
+    SecretsUsedInArgOrEnv: Do not use ARG or ENV instructions for
+    sensitive data (ARG "SERVICE_SECRET")
+
+Y tiene razón. Coolify pasa las variables marcadas `buildtime` como
+**argumentos de build**, y un ARG no se borra: queda en el historial
+de la imagen, a la vista con `docker history`. En un servicio con
+`SUPABASE_SECRET_KEY` y `SERVICE_SECRET` ahí dentro.
+
+Solo una variable debe ser `buildtime`:
+
+| Variable | buildtime | por qué |
+|---|---|---|
+| `NEXT_PUBLIC_PANEL_URL` | **sí** | Next la sustituye al compilar y acaba en el JS del navegador |
+| las otras seis | **no** | solo se usan en runtime |
+
+`is_runtime = true` para las siete, `is_buildtime = true`
+únicamente para `NEXT_PUBLIC_PANEL_URL`.
+
+Cómo se comprueba que un ARG no se coló:
+
+```bash
+docker history --no-trunc <imagen> | grep -iE "SERVICE_SECRET|SECRET_KEY"
+```
+
+Si sale algo, el secreto está en la imagen.
+
+─────────────────────────────────────────────────────────────────────
+16. ⭐ CAMBIAR EL DOMINIO POR SQL NO BASTA
+─────────────────────────────────────────────────────────────────────
+
+El síntoma, después de cambiar `fqdn` correctamente y desplegar:
+
+- la app responde `200` por dentro del contenedor
+- el contenedor está `healthy`
+- el `fqdn` en la base es el nuevo
+- **el dominio público da connection refused**
+
+La causa: Coolify no le pasa el `fqdn` a Traefik. Le pasa las
+etiquetas de Traefik ya montadas, y las monta desde la columna
+`custom_labels`, que es un **base64 de texto**. Ese texto lo escribe
+Coolify cuando cambias el dominio en la interfaz. Si cambias el
+`fqdn` con `UPDATE`, `custom_labels` se queda con lo anterior.
+
+Para verlo, comparar la etiqueta del contenedor con la columna:
+
+```bash
+docker inspect <contenedor> --format '{{json .Config.Labels}}' \
+  | tr ',' '\n' | grep 'routers.https.*rule'
+# traefik.http.routers.https-0-<uuid>.rule = Host(`<UUID>.panel-...`)
+```
+
+El UUID en la regla, cuando el `fqdn` ya dice `inventario.panel-...`.
+
+Solución: que sea el código de Coolify quien regenere las
+etiquetas, no escribirlas a mano. La función es
+`generateLabelsApplication($app)`:
+
+```php
+$app->custom_labels = base64_encode(
+    str(implode('|coolify|', generateLabelsApplication($app)))
+        ->replace('|coolify|', "\n")
+);
+$app->save();
+```
+
+Es la misma línea que ejecuta la interfaz en
+`app/Livewire/Project/Application/Domains.php`.
+
+Un detalle que sale solo: si hubo un rollback, quedan **dos**
+contenedores del mismo proyecto y Traefik se queja en bucle
+
+    Router defined multiple times with different configurations
+
+y descarta ambos, así que el dominio deja de responder aunque el
+contenedor nuevo esté perfecto. Borra el contenedor viejo.
+
+─────────────────────────────────────────────────────────────────────
+17. ⭐ CONFIGURAR LA APP SIN API: POR ELOQUENT, NUNCA POR SQL
+─────────────────────────────────────────────────────────────────────
+
+Si no hay token de la API de Coolify —el de este proyecto caducó—, se
+puede configurar desde dentro del contenedor:
+
+```bash
+docker cp coolify-vars.php coolify:/var/www/html/
+docker exec coolify php /var/www/html/artisan tinker /var/www/html/coolify-vars.php
+```
+
+`db/generar-coolify.mjs` genera ese PHP con los valores de
+`.env.local`, en base64 para no tener que escapar nada.
+
+**Por qué Eloquent y no SQL.** Tres motivos, y cada uno costó un
+despliegue:
+
+**a) El valor va cifrado.** La columna `value` tiene el cast
+`'encrypted'`. Lo que está en la base no es el valor: es el valor
+cifrado con la `APP_KEY` de Coolify. Insertar el texto en claro por
+SQL produce una fila correcta en todo lo que se puede mirar desde
+fuera, y que Coolify no puede leer:
+
+    Illuminate\Contracts\Encryption\DecryptException
+    The payload is invalid.
+
+**b) El tipo del morph tiene que ser la clase entera.**
+`resourceable_type` vale `App\Models\Application`, **no `App`**.
+Laravel resuelve el morph por el nombre de la clase, y si no
+encuentra `App` descarta la fila en silencio. Las variables están
+escritas, con los valores correctos, y la interfaz no muestra
+ninguna.
+
+**c) Y las barras invertidas no se escapan.** En un literal de
+Postgres, con `standard_conforming_strings` activo —el valor por
+defecto desde 9.1—, lo que va entre comillas se guarda tal cual.
+Si el generador escapa `\`, se acaba guardando
+`App\\Models\\Application` con dos barras, que tampoco encaja.
+
+Los tres fallos se esconden igual: desde la tabla de Postgres, la
+variable parece puesta.
+
+**Cómo comprobarlo sin fiarse de la tabla.** Con la misma llamada que
+hace la pantalla:
+
+```php
+$app = \App\Models\Application::where('uuid', '<uuid>')->first();
+$app->environment_variables()->count();
+```
+
+Si sale 0, hay un problema de morph o de cifrado, aunque la tabla
+`SELECT` devuelva filas.
+
+Para desplegar, el helper que usa la API:
+
+```php
+queue_application_deployment(
+    application: $app,
+    deployment_uuid: new_public_id(),
+    force_rebuild: true,
+    is_api: false,
+    no_questions_asked: true
+);
+```
+
+Copia y pegado de
+`app/Http/Controllers/Api/ApplicationsController.php`.
+
+─────────────────────────────────────────────────────────────────────
+18. ⭐ UN TOKEN DE PRUEBA FALSO PRODUCE 200 Y LUEGO 500 EN TODO
+─────────────────────────────────────────────────────────────────────
+
+Este lo Seas uno mismo al probar, y es el que más cuesta reconocer
+porque el canje **funciona**:
+
+    [entrar] no se pudo crear la sesión Error: insert or update on
+    table "inventario_sesiones" violates foreign key constraint
+    "servicio_sesiones_user_id_fkey"
+
+Son **dos** cosas a la vez, y por eso el 500 no dice nada útil:
+
+**El `user_id` del ticket tiene que existir.** Hay clave foránea a un
+usuario de `auth`. Un id inventado revienta al crear la sesión, no
+antes.
+
+**El `access_token` tiene que ser real.** Si no, la sesión se crea
+igual, el canje responde 200, la cookie se pone, el contenedor está
+sano… y todas las APIs dan:
+
+    [resumen] no se pudo leer el stock: JWT cryptographic operation failed
+
+Que parece un problema de la secret key o de la base. No es nada de
+eso: `SUPABASE_SECRET_KEY` estaba bien, con el md5 correcto. El token
+era de mentira.
+
+Un ticket con token falso **no da 401**. Da 200. Es lo que hace la
+prueba engañosa.
+
+Cómo evitarlo: la prueba busca un usuario real, inicia sesión con él
+para sacar un token de verdad, y avisa si no encuentra credenciales,
+en vez de inventarse un token:
+
+    node db/probar-produccion.mjs
+
+─────────────────────────────────────────────────────────────────────
 CUANDO ALGO VA MAL
 ─────────────────────────────────────────────────────────────────────
    ─────────────────────────────────────────────────────────────────────
@@ -333,6 +571,12 @@ CUANDO ALGO VA MAL
    |---|---|
    | `[db] falta SUPABASE_URL` | Punto 2. Las variables no llegan |
    | 401 "ese enlace no vale" | `SERVICE_SECRET` no coincide, **o faltan las variables**. Punto 13 |
+| 403 "no tiene este servicio contratado" | El cliente no lo tiene. **No es un fallo.** Se comprueba con `tiene_modulo` |
+| 500 + "JWT cryptographic operation failed" | `access_token` falso en el ticket. Punto 18 |
+| 500 + "violates foreign key ... user_id_fkey" | `user_id` inventado en el ticket. Punto 18 |
+| Las variables no salen en la interfaz | `resourceable_type` mal, o valor sin cifrar. Punto 17 |
+| El dominio da connection refused pero el contenedor está sano | `custom_labels` con el dominio viejo. Punto 16 |
+| Rollback con "container is unhealthy" | Falta `wget` en la imagen. Punto 14 |
    | El canje va bien y luego no hay sesión | Punto 10. Falta `secure` |
    | Va lento, el log lleno de lo mismo | Punto 9 |
    | Los enlaces del panel van al sitio viejo | Punto 3. Hay que Rebuild |

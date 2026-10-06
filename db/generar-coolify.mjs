@@ -114,7 +114,7 @@ foreach ($filas as $i => [$clave, $b64]) {
      * falta durante el build. Las otras seis no se usan al compilar,
      * asi que marcarlas como buildtime hace que Coolify las pase como
      * ARG, y un ARG no desaparece: queda en el historial de la imagen
-     * para siempre, visible con un `docker history`.
+     * para siempre, visible con docker history.
      *
      * El aviso de BuildKit lo dice al vuelo:
      *
