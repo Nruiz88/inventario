@@ -14,6 +14,7 @@
     "revertir": "node db/revertir.mjs",
     "test:base": "node db/test-reglas.js",
     "test:entrada": "node db/test-entrada.mjs",
+    "test:dashboard": "node db/test-dashboard.mjs",
     "dev:ticket": "node db/dev-ticket.mjs",
     "limpiar:pruebas": "node db/limpar-pruebas.js"
   },

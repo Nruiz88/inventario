@@ -36,10 +36,19 @@ const env = leerEnv(path.join(__dirname, "..", ".env.local"));
 
   /* Se busca por nombre, no "todo lo que no tenga datos". La diferencia
      importa: esto corre contra una base compartida con clientes de
-     verdad, y "borrar los clientes que no tienen inventario" se lleva
-     por delante el inventario vacío de un cliente real. */
+     verdad, y "borrar los clientes que no tengan inventario" se lleva
+     por delante el inventario vacío de un cliente real.
+
+     Los dos patrones son de pruebas:
+       · 'Producto de prueba'   de db/test-reglas.js
+       · 'PRUEBA-<marca>'      de db/test-dashboard.mjs
+
+     El segundo es un prefijo, no un nombre exacto, y conviene que lo
+     sea: el recorrido del dashboard pone la marca al principio para
+     poder reconocerlo a simple vista en un SELECT. */
   const { rows: productos } = await db.query(
-    "select id, client_id from inv_productos where nombre = 'Producto de prueba'"
+    "select id, client_id from inv_productos " +
+      "where nombre = 'Producto de prueba' or nombre like 'PRUEBA-%'"
   );
 
   if (!productos.length) {
@@ -85,6 +94,16 @@ const env = leerEnv(path.join(__dirname, "..", ".env.local"));
   }
 
   await db.query("delete from inventario_sesiones where csrf_token = 'csrf-de-prueba'");
+
+  /* Los clientes del comercio que creo el recorrido del dashboard.
+     `db/test-reglas.js` no crea ninguno, así que no se tocan. Se
+     buscan por nombre con la marca, no "los que no tienen ventas":
+     un cliente real sin ventas es un cliente real. */
+  await db.query("delete from inv_cuentas where cliente_id in (select id from inv_clientes where nombre like 'PRUEBA-%')");
+  const { rows: clientesBorrados } = await db.query(
+    "delete from inv_clientes where nombre like 'PRUEBA-%' returning id"
+  );
+  if (clientesBorrados.length) console.log(`  ${clientesBorrados.length} cliente(s) de prueba borrados`);
 
   console.log("\n  ✓ Listo.\n");
   await db.end();

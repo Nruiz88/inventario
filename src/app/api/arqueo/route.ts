@@ -187,12 +187,22 @@ export async function PATCH(request: Request) {
   const { datos, error } = await cuerpoDe(request);
   if (error) return error;
 
-  const id = String((datos as any)?.id || "");
-  const real = enteroEn((datos as any)?.saldoReal, 0, 100000000);
+  /* El id es opcional a propósito.
 
-  if (!id) {
-    return NextResponse.json({ ok: false, error: "No se sabe qué arqueo cerrar." }, { status: 400 });
-  }
+   Si se lo pasa, se cierra ese. Si no, se cierra el de HOY.
+
+   La razón de que sea opcional: la pantalla de caja pide «cuánto
+   contaste» y nada más. Si el route exigiera el id, la pantalla
+   tendría que cargarlo primero y guardarlo, para después mandarlo de
+   vuelta. Con el id opcional, el botón de cerrar es un `PATCH` con dos
+   campos.
+
+   Y no es una comodidad: el dueño no está mirando ids, y hacer que el
+   servidor los controle evita que cierre por error el arqueo de otro
+   día si el estado de la pantalla se quedó viejo. */
+  let id = String((datos as any)?.id || "");
+  const real = enteroEn((datos as any)?.saldoReal ?? (datos as any)?.real, 0, 100000000);
+
   if (!real.ok) {
     return NextResponse.json(
       { ok: false, error: "El saldo contado tiene que ser un número." },
@@ -201,6 +211,23 @@ export async function PATCH(request: Request) {
   }
 
   const db = clienteDe(g.sesion);
+  const zona = process.env.BUSINESS_TIMEZONE || "America/Argentina/Buenos_Aires";
+
+  if (!id) {
+    const { data: hoyRow } = await db
+      .from("inv_arqueos")
+      .select("id")
+      .eq("fecha", hoy(zona))
+      .maybeSingle();
+
+    if (!hoyRow) {
+      return NextResponse.json(
+        { ok: false, error: "Hoy no hay arqueo abierto." },
+        { status: 409 }
+      );
+    }
+    id = hoyRow.id;
+  }
 
   /* Solo se manda `saldo_real_cents`. El `diferencia_cents` NO se
      escribe: la calcula el trigger. Si se mandara, el UPDATE lo

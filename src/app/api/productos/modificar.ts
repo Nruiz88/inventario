@@ -155,15 +155,33 @@ export async function DELETE(request: Request) {
 
   /* Las variantes de las que se puede borrar: las que NO tienen
      movimientos. Con un movimiento, desactivar. */
-  let variantes: any[] = [];
+  let variantes: string[] = [];
   if (idVariante) {
     variantes = [idVariante];
   } else {
-    const { data: vs } = await db
+    const { data: vs, error: eVs } = await db
       .from("inv_variantes")
       .select("id")
       .eq("producto_id", idProducto);
-    variantes = vs || [];
+
+    if (eVs) return fallo(eVs, "productos DELETE", "No se pudieron leer las presentaciones.");
+
+    /* ⚠️  EL `.map()` NO ES OPCIONAL
+     * -------------------------------
+     * `select("id")` devuelve [{ id: "..." }], no ["..."]. Sin este
+     * `.map`, el `.in("variante_id", variantes)` manda objetos, Postgres
+     * dice `invalid input syntax for type uuid: "[object Object]"`, y la
+     * consulta no devuelve movimientos NINGUNO.
+     *
+     * Lo grave no es el error: es lo que pasaba después. Ese error se
+     * leía como "no hay historial", y "no hay historial" es la condición
+     * que autoriza el BORRADO FÍSICO. Un fallo de tipeo en un `.map()`
+     * convertía el endpoint en un botón de borrar el historial del
+     * negocio.
+     *
+     * Por eso ahora el error de la consulta se comprueba y se devuelve,
+     * en vez de tragárselo. */
+    variantes = (vs || []).map((v: any) => v.id);
   }
 
   if (!variantes.length) {
@@ -175,10 +193,36 @@ export async function DELETE(request: Request) {
 
   /* ¿Alguna tiene movimientos? Una sola basta: si hay un historial,
      el producto entero tiene que quedarse. */
-  const { data: conMovimientos } = await db
+  const { data: conMovimientos, error: eMovs } = await db
     .from("inv_movimientos")
     .select("variante_id")
     .in("variante_id", variantes);
+
+  /* ⚠️  SI ESTA CONSULTA FALLA, NO SE BORRA NADA
+   * ---------------------------------------------
+   * Antes, un error de PostgREST devolvía `data: null`, y `null || []`
+   * lo convertía en "no hay movimientos". Con eso, una consulta rota
+   * autorizaba el BORRADO FÍSICO de un producto con historial, que es
+   * justo lo que este endpoint existe para impedir.
+   *
+   * Un fallo de red que se lee como "no hay historial" es el peor
+   * resultado posible: no da error, borra el historial del negocio, y el
+   * dueño no se entera hasta que pregunta por qué el stock no cuadra.
+   *
+   * Ante la duda, se conserva. Costar un producto que se quería borrar
+   * es barato; perder seis meses de movimientos, no. */
+  if (eMovs) {
+    console.error("[productos DELETE] no se pudo leer el historial:", eMovs.message);
+    return NextResponse.json(
+      {
+        ok: false,
+        error:
+          "No se pudo comprobar si el producto tiene movimientos. No se borró nada: probá otra vez.",
+        detalle: process.env.NODE_ENV === "production" ? undefined : eMovs.message,
+      },
+      { status: 503 }
+    );
+  }
 
   const conHistorial = (conMovimientos || []).length > 0;
 

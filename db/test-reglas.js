@@ -518,6 +518,32 @@ function comprobar(desc, cond, extra) {
     sinRls.map((t) => t.relname).join(", ") || "todas (" + rls.length + ")"
   );
 
+  /* ⚠️  RLS ENCENDIDO NO ES LO MISMO QUE RLS CON POLÍTICAS
+   * -------------------------------------------------------
+   * Esta comprobación no estaba, y por eso `inv_ventas` pasó months
+   * con RLS encendido y CERO políticas.
+   *
+   * La combinación es la peor: con RLS apagada una tabla sin políticas
+   * se lee de más. Con RLS encendida y sin políticas, NO SE LEE NADA.
+   * Una venta se guardaba bien y a continuación el historial la devolvía
+   * vacía y anularla daba 404. El POST decía 200 con el total correcto.
+   *
+   * Es decir: mirar `relrowsecurity` da una falsa sensación de
+   * seguridad, porque una tabla con RLS y sin políticas parece
+   * protegida y es lo contrario de accesible.
+   */
+  const { rows: sinPoliticas } = await db.query(
+    "select c.relname from pg_class c join pg_namespace n on n.oid = c.relnamespace " +
+      "where n.nspname = 'public' and c.relkind = 'r' and c.relrowsecurity " +
+      "and c.relname like 'inv\\_%' " +
+      "and not exists (select 1 from pg_policies p where p.tablename = c.relname)"
+  );
+  comprobar(
+    "toda tabla de negocio con RLS tiene alguna política",
+    sinPoliticas.length === 0,
+    sinPoliticas.map((t) => t.relname).join(", ") || "ninguna sin políticas"
+  );
+
   const { rows: pol } = await db.query(
     "select tablename, count(*)::int as n from pg_policies " +
       "where tablename like 'inv_%' or tablename = 'inventario_sesiones' group by 1 order by 1"
