@@ -72,6 +72,125 @@ export function diasAtras(n: number, timezone: string): string {
 }
 
 /**
+ * El instante UTC de las 00:00 del día local, en ISO.
+ *
+ * ⚠️  POR QUÉ ESTA FUNCIÓN EXISTE, Y POR QUÉ NO BASTA CON `hoy()`
+ * ------------------------------------------------
+ * `hoy()` devuelve la FECHA local: "2026-10-06". Para preguntar a la base
+ * por las ventas de hoy hay que convertirla en un instante, y la forma
+ * fácil es `hoy() + "T00:00:00.000Z"`. Eso es medianoche UTC, que en
+ * Buenos Aires son las 21:00 del día ANTERIOR.
+ *
+ * Consecuencia medida: el resumen decía "$0,00 vendidos hoy" con seis
+ * ventas registradas. Las seis caían entre las 21 y las 24, que en un
+ * kiosco es la hora punta: la del grocery, la de la prepaga y la de la
+ * vuelta del trabajo.
+ *
+ * Y es el peor sitio posible para un fallo así, porque solo aparece
+ * después de las nueve de la noche. Durante el día todo cuadra, el
+ * dueño mira el resumen a las once, ve cero, y cree que le están
+ * robando. O peor: no se le ocurre que el sistema esté mal y busca en
+ * las ventas una por una.
+ *
+ * La conversión va en dos pasos y no en uno: se toma la fecha como si
+ * fuera UTC, se lee qué fecha local es ese instante, y la diferencia
+ * es el desfase de la zona. Se repite una vez porque hay zonas con
+ * desfase de media hora, donde el primer cálculo se queda corto.
+ */
+export function inicioDelDia(fechaIso: string, timezone: string): string {
+  /* El reloj de la zona, como si fuera UTC. Esta es la pieza clave.
+
+     `muroComoUtc(instante)` es la hora local leída y pegada en un
+     timestampa UTC. La diferencia con `instante` es el desfase de la
+     zona, que es constante mientras no haya un cambio de hora en medio.
+
+     Y el desfase es lo que hay que restar del objetivo:
+
+         instante = objetivo - desfase
+
+     La primera versión hacía `instante = instante - desfase`, que es
+     otra cosa. Con el signo invertido, cada iteración se alejaba un día
+     en vez de acercarse: para el 6 de octubre en Buenos Aires devolvía el
+     8. Cinco pruebas lo cazaron, y una saying "cubre 24 horas" produjo
+     un rango de -24. */
+  const leerMuro = (instante: number) => {
+    const d = new Date(instante);
+    const p = new Intl.DateTimeFormat("en-CA", {
+      timeZone: timezone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hour12: false,
+    }).formatToParts(d);
+
+    const g = (t: string) => p.find((x) => x.type === t)?.value ?? "00";
+    /* `hour12: false` puede devolver "24" para medianoche en algunos
+       navegadores. Es la medianoche del día, no del siguiente, y
+       `Date.parse` lo interpretaría como 24 horas más. */
+    const hora = g("hour") === "24" ? "00" : g("hour");
+    return `${g("year")}-${g("month")}-${g("day")}T${hora}:${g("minute")}:${g("second")}Z`;
+  };
+
+  const objetivo = Date.parse(fechaIso + "T00:00:00.000Z");
+  let instante = objetivo;
+
+  /* Dos vueltas: la primera corrige, la segunda confirma que ya no se
+     mueve. Con una sola no se puede comprobar nada. */
+  for (let i = 0; i < 2; i++) {
+    const desfase = Date.parse(leerMuro(instante)) - instante;
+    const nuevo = objetivo - desfase;
+    if (nuevo === instante) break;
+    instante = nuevo;
+  }
+
+  return new Date(instante).toISOString();
+}
+
+/** El final del día local, en ISO. Exclusivo: el `lt` del día siguiente. */
+export function finDelDia(fechaIso: string, timezone: string): string {
+  return inicioDelDia(desplazarFecha(fechaIso, 1), timezone);
+}
+
+/**
+ * La fecha `n` días después.
+ *
+ * El signo va en el `+`, y esa es la parte que estuvo mal: la función
+ * restaba el día, así que "el fin de hoy" devolvía el principio de
+ * AYER. El rango salía invertido —`hasta` un día antes de `desde`— y la
+ * consulta con `.lt(hasta).gte(desde)` no devolvía nada.
+ *
+ * Lo detectó la prueba de "cubre 24 horas", que dio `-24`: un rango
+ * invertido no es de cero horas, es de menos veinticuatro.
+ */
+function desplazarFecha(fechaIso: string, n: number): string {
+  const [a, m, d] = fechaIso.split("-").map(Number);
+  const f = new Date(Date.UTC(a, m - 1, d + n));
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: "UTC",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(f);
+}
+
+/**
+ * El rango UTC que corresponde a un día local.
+ *
+ * Es lo que usan el resumen, el historial de ventas, la caja y el
+ * arqueo. Los cuatro armaban "fecha local + T00:00Z", y los cuatro
+ * perdían la tarde.
+ */
+export function rangoDelDia(fechaIso: string, timezone: string): { desde: string; hasta: string } {
+  return {
+    desde: inicioDelDia(fechaIso, timezone),
+    hasta: finDelDia(fechaIso, timezone),
+  };
+}
+
+/**
  * Cuánto margen hay en una venta.
  *
  * El dueño lo necesita constantly y con un solo número: "esto lo vendí

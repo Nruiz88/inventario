@@ -279,7 +279,15 @@ export function Ventas() {
             ))}
             {encontrados.length === 0 && (
               <span style={{ ...tipografia.chico, color: color.apagado, alignSelf: "center" }}>
-                Nada coincide con «{busqueda}».
+                {/* Tres casos distintos, y el mensaje tiene que decir cuál.
+                    Con un solo mensaje, un kiosco recién configurado
+                    —que no tiene ni un producto— lee "Nada coincide con
+                    «»", que suena a que el buscador está roto. */}
+                {!busqueda.trim()
+                  ? variantes.length === 0
+                    ? "Todavía no hay productos. Cargalos en Productos para poder vender."
+                    : "Escribí el nombre de algo para empezar."
+                  : `Nada coincide con «${busqueda}».`}
               </span>
             )}
           </div>

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { exigeSessionApi, clienteDe, cuerpoDe, enteroEn, fallo } from "@/lib/api";
-import { hoy } from "@/lib/dinero";
+import { hoy, rangoDelDia } from "@/lib/dinero";
 
 /* =========================================================
    GET/POST/PATCH /api/arqueo
@@ -72,7 +72,7 @@ export async function GET() {
   const { data: movimientos } = await db
     .from("inv_caja")
     .select("tipo, monto_cents")
-    .gte("fecha", hoyIso + "T00:00:00.000Z")
+    .gte("fecha", rangoDelDia(hoyIso, zona).desde)
     .limit(500);
 
   const ingresos = (movimientos || [])

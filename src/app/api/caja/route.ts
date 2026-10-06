@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { exigeSessionApi, clienteDe, cuerpoDe, uuid, enteroEn, fallo } from "@/lib/api";
-import { hoy } from "@/lib/dinero";
+import { hoy, rangoDelDia } from "@/lib/dinero";
 
 /* =========================================================
    GET/POST /api/caja
@@ -55,8 +55,8 @@ export async function GET(request: Request) {
   const { data, error } = await db
     .from("inv_caja")
     .select("id, fecha, tipo, categoria, monto_cents, concepto, venta_id, compra_id")
-    .gte("fecha", desde + "T00:00:00.000Z")
-    .lt("fecha", new Date(Date.parse(hasta + "T00:00:00.000Z") + 86400000).toISOString())
+    .gte("fecha", rangoDelDia(desde, zona).desde)
+    .lt("fecha", rangoDelDia(hasta, zona).hasta)
     .order("fecha", { ascending: false })
     .limit(Number(q.get("limite") || 200));
 

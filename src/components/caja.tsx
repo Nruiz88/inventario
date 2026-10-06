@@ -74,9 +74,24 @@ export function Caja() {
 
   return (
     <div style={{ display: "grid", gap: "1rem" }}>
-      {/* ── El arqueo ── */}
+      {/* ── El arqueo ──
+          La condición mira `arqueo.arqueo`, NO `arqueo`.
+
+          Son dos cosas distintas y confundirlas rompe la pantalla:
+          `arqueo` es la respuesta completa y puede no haber llegado
+          todavía; `arqueo.arqueo` es la fila del día, que es `null`
+          cuando no hay arqueo abierto.
+
+          Con la condición al revés, una respuesta que llega con
+          `cerrado: false` y `arqueo: null` —que es exactamente lo que
+          devuelve `/api/arqueo` un día que no se ha abierto— caía en la
+          rama de "abierto" y leía `arqueo.arqueo.inicial` sobre null.
+          Pantalla en blanco con HTTP 200 y un error de React por encima.
+
+          Un fallo que solo aparece el primer día que se usa, que es
+          justo cuando el dueño no sabe qué hacer con la pantalla. */}
       <Panel titulo="Arqueo del día">
-        {!arqueo ? (
+        {!arqueo || !arqueo.arqueo ? (
           <div style={{ padding: "1rem", display: "grid", gap: ".85rem" }}>
             <div style={{ ...tipografia.normal, lineHeight: 1.65 }}>
               Hoy no hay arqueo abierto.
@@ -222,7 +237,7 @@ export function Caja() {
         />
       )}
 
-      {cerrando && arqueo && (
+      {cerrando && arqueo?.arqueo && (
         <CerrarArqueo
           esperado={arqueo.esperado}
           onCerrar={() => setCerrando(false)}

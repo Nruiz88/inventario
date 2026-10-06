@@ -1,5 +1,14 @@
 import { describe, it, expect } from "vitest";
-import { dinero, numero, aNumero, aCentavos, margen, ganancia, hoy } from "./dinero";
+import {
+  dinero,
+  numero,
+  aNumero,
+  aCentavos,
+  margen,
+  ganancia,
+  hoy,
+  rangoDelDia,
+} from "./dinero";
 
 /* =========================================================
    El dinero
@@ -78,6 +87,67 @@ describe("el margen", () => {
     /* Que salga "-20%" y no "0%" es lo que hace ver que ese producto
        está mal puesto. Con 0% el dueño no se entera. */
     expect(margen(100, 125)).toBe(-20);
+  });
+});
+
+describe("el rango del día local", () => {
+  const zona = "America/Argentina/Buenos_Aires";
+
+  it("la medianoche local es el instante correcto, no medianoche UTC", () => {
+    /* Este es el bug que hacía que el resumen dijera "$0,00 vendidos
+       hoy" con seis ventas registradas.
+
+       Argentina está en UTC-3, así que su medianoche son las 03:00 UTC.
+       Con la fecha local + "T00:00:00Z" se empezaba a contar a las 21
+       del día ANTERIOR, y todas las ventas de la tarde quedaban
+       fuera. */
+    const r = rangoDelDia("2026-10-06", zona);
+
+    expect(r.desde).toBe("2026-10-06T03:00:00.000Z");
+    expect(r.hasta).toBe("2026-10-07T03:00:00.000Z");
+  });
+
+  it("cubre las 24 horas exactas", () => {
+    const r = rangoDelDia("2026-10-06", zona);
+    const horas = (Date.parse(r.hasta) - Date.parse(r.desde)) / 3600000;
+    expect(horas).toBe(24);
+  });
+
+  it("una venta de las diez de la noche cae DENTRO del día", () => {
+    /* La hora concreta del fallo: las 22:30 locales.
+       En UTC son las 01:30 del día siguiente, así que un filtro que
+       empezara en "T00:00:00Z" del día 6 la habría dejado fuera, y con
+       ella todas las ventas de la tarde y de la noche. */
+    const r = rangoDelDia("2026-10-06", zona);
+    const lasOnceDeLaNoche = Date.parse("2026-10-07T01:30:00.000Z");
+
+    expect(lasOnceDeLaNoche).toBeGreaterThan(Date.parse(r.desde));
+    expect(lasOnceDeLaNoche).toBeLessThan(Date.parse(r.hasta));
+  });
+
+  it("y una venta de la mañana ANTERIOR queda fuera", () => {
+    const r = rangoDelDia("2026-10-06", zona);
+    const ayer = Date.parse("2026-10-05T15:00:00.000Z"); /* 12:00 del 5 */
+    expect(ayer).toBeLessThan(Date.parse(r.desde));
+  });
+
+  it("funciona en una zona con medio hora de desfase", () => {
+    /* India es UTC+5:30. Con un solo paso de corrección el desfase se
+       queda a medias y el rango empieza a las 18:30 en vez de a las
+       19:30. Por eso `inicioDelDia()` itera dos veces. */
+    const r = rangoDelDia("2026-10-06", "Asia/Kolkata");
+    expect(r.desde).toBe("2026-10-05T18:30:00.000Z");
+  });
+
+  it("en un día con cambio de hora, el rango sigue siendo de 24 horas", () => {
+    /* Un día de 23 o 25 horas. Si el rango se calculara sumando 24
+       horas en lugar de pedirle a la zona qué día es, este día saldría
+       de 23 o de 25 y el resumen contaría dos veces o no contaría. */
+    for (const dia of ["2026-10-18", "2026-11-01", "2026-03-29"]) {
+      const r = rangoDelDia(dia, zona);
+      const horas = (Date.parse(r.hasta) - Date.parse(r.desde)) / 3600000;
+      expect(horas).toBe(24);
+    }
   });
 });
 

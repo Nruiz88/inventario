@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { exigeSessionApi, clienteDe, cuerpoDe, uuid, enteroEn, fallo } from "@/lib/api";
-import { hoy } from "@/lib/dinero";
+import { rangoDelDia } from "@/lib/dinero";
 
 /* =========================================================
    GET/PATCH /api/ventas
@@ -58,8 +58,12 @@ export async function GET(request: Request) {
     .order("fecha", { ascending: false })
     .limit(Number(q.get("limite") || 50));
 
-  if (desde) consulta = consulta.gte("fecha", desde + "T00:00:00.000Z");
-  if (hasta) consulta = consulta.lt("fecha", hasta + "T23:59:59.999Z");
+  /* El rango se convierte a instantes UTC antes de filtrar.
+     `desde + "T00:00:00Z"` es medianoche UTC, que en Argentina son las 21
+     del día anterior: el historial del viernes se cortaba a las nueve de
+     la noche, que es justo cuando se mira. */
+  if (desde) consulta = consulta.gte("fecha", rangoDelDia(desde, zona).desde);
+  if (hasta) consulta = consulta.lt("fecha", rangoDelDia(hasta, zona).hasta);
 
   /* `soloPendientes=1` es la vista del final del día: las ventas sin
      comprobar. Es la que responde a la pregunta para la que existe el

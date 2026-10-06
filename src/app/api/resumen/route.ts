@@ -1,16 +1,16 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { exigeSessionApi } from "@/lib/acceso/sesion";
-import { hoy, diasAtras } from "@/lib/dinero";
+import { hoy, diasAtras, rangoDelDia } from "@/lib/dinero";
 
 /* =========================================================
-   GET /api/resumen — lo que se ve al entrar
+   GET /api/resumen  lo que se ve al entrar
    ---------------------------------------------------------
    TODO lo que sale en una consulta. No por vagancia: cada consulta por
    separado es un viaje a la base, y en un móvil con datos lentos se nota
    la diferencia.
 
-   ⚠️  EL FILTRO DE STOCK SE HACE AQUÍ, NO EN LA CONSULTA
+   a️  EL FILTRO DE STOCK SE HACE AQUÍ, NO EN LA CONSULTA
    -----------------------------------------------------
    Stock bajo significa `stock <= stock_minimo`, y eso es una comparación
    entre DOS COLUMNAS DE LA MISMA FILA. La API de Supabase no lo
@@ -26,7 +26,7 @@ import { hoy, diasAtras } from "@/lib/dinero";
    base, y no antes: una vista por adelantado es más infraestructura
    que información.
 
-   LO QUE CALCULA, Y POR QUÉ
+   LO QUE CALCULA, Y POR QU0
    --------------------------
    · stock bajo: lo que está en o por debajo de su mínimo.
    · a reponer: lo que está en CERO. Es distinto de "se está acabando":
@@ -63,9 +63,17 @@ export async function GET() {
   const hoyIso = hoy(zona);
   const desde30 = diasAtras(30, zona);
 
-  /* ── Stock ── */
+  /* El rango del día, como instantes UTC reales.
+     `hoyIso` es la fecha local ("2026-10-06") y sirve para mostrarla y
+     para agrupar por día. Para FILTRAR hace falta el instante, y
+     `hoyIso + "T00:00:00Z"` sería medianoche UTC: en Argentina, las 21
+     del día anterior. Ver `rangoDelDia()`. */
+  const rango = rangoDelDia(hoyIso, zona);
+  const inicio30 = rangoDelDia(desde30, zona).desde;
 
-  /* ⚠️  POR QUÉ `inv_productos` PUEDE SER UN ARRAY
+  /*  Stock  */
+
+  /* a️  POR QU0 `inv_productos` PUEDE SER UN ARRAY
    ----------------------------------------------
    PostgREST devuelve el JOIN anidado como OBJETO cuando sabe que la
    relación es de uno a muchos (una variante pertenece a un producto),
@@ -109,13 +117,14 @@ export async function GET() {
   const bajo = todas.filter((v) => v.stock <= (v.stock_minimo || 0));
   const enCero = todas.filter((v) => v.stock === 0);
 
-  /* ── Dinero ── */
+  /*  Dinero  */
   const [ventasHoy, treinta, caja, cuentas] = await Promise.all([
     db
       .from("inv_ventas")
       .select("total_cents")
       .eq("anulada", false)
-      .gte("fecha", hoyIso + "T00:00:00.000Z"),
+      .gte("fecha", rango.desde)
+      .lt("fecha", rango.hasta),
 
     db
       .from("inv_ventas")
@@ -126,24 +135,68 @@ export async function GET() {
     db
       .from("inv_caja")
       .select("tipo, monto_cents")
-      .gte("fecha", hoyIso + "T00:00:00.000Z")
+      .gte("fecha", rango.desde)
+      .lt("fecha", rango.hasta)
       .limit(500),
 
     db.from("inv_cuentas").select("tipo, monto_cents").limit(1000),
   ]);
 
-  const sumar = (filas: any[], tipo?: string) =>
+  /* Suma una columna, con filtro opcional por `tipo`.
+
+     El NOMBRE DE LA COLUMNA es un argumento y no algo fijo: `inv_caja` tiene
+     `monto_cents` y `inv_ventas` tiene `total_cents`. La primera versión
+     usaba `monto_cents` para todo, y al reutilizarla para las ventas salía
+     "$0,00 vendidos hoy" con ocho ventas registradas: el conteo salía
+     bien porque cuenta filas, y la suma daba cero porque la columna no
+     existía y el `|| 0` lo tapaba.
+
+     Un `|| 0` sobre una columna mal nombrada es el peor ocultamiento que
+     hay: no da error, da cero, y el cero parece un dato. */
+  const sumar = (filas: any[], columna: string, tipo?: string) =>
     (filas || [])
       .filter((f) => (tipo ? f.tipo === tipo : true))
-      .reduce((s, f) => s + (f.monto_cents || 0), 0);
+      .reduce((s, f) => s + (f[columna] || 0), 0);
 
-  const totalHoy = sumar(ventasHoy.data as any[], undefined);
-  const total30 = sumar(treinta.data as any[], undefined);
+  const totalHoy = sumar(ventasHoy.data as any[], "total_cents");
+  const total30 = sumar(treinta.data as any[], "total_cents");
 
-  const cajaDelDia = sumar(caja.data as any[], "ingreso") - sumar(caja.data as any[], "egreso");
-  const deuda = sumar(cuentas.data as any[], "debe") - sumar(cuentas.data as any[], "haber");
+  const cajaDelDia =
+    sumar(caja.data as any[], "monto_cents", "ingreso") -
+    sumar(caja.data as any[], "monto_cents", "egreso");
 
-  /* ── Lo que falta por facturar ── */
+  /* ⚠️  LO QUE HAY EN EL CAJÓN, NO LO QUE SE MOVIÓ HOY
+   * ---------------------------------------------------
+   * "Entró menos lo que salió HOY" no es lo que hay en el cajón: el
+   * cajón empezó el día con algo y ese algo sigue ahí. Con el
+   * arqueo abierto, lo que hay es esa cantidad más el movimiento del
+   * día.
+   *
+   * La diferencia se ve enseguida: un kiosco que abre con $8.500 y
+   * gasta $7.500 con lo que entra da $1.000, no -$6.000. Mostrar el
+   * movimiento del día con el rótulo "en el cajón" hace creer que el
+   * dueño está en quintaperdida cuando lo único que pasó es que aún no
+   *CAE la primera venta del día.
+   *
+   * Sin arqueo abierto no hay con qué comparar, y se devuelve null para
+   * que la pantalla diga "abrí el arqueo" en vez de inventar un número. */
+  let saldoCaja: number | null = null;
+
+  const { data: arqueoHoy } = await db
+    .from("inv_arqueos")
+    .select("saldo_inicial_cents")
+    .eq("fecha", hoyIso)
+    .maybeSingle();
+
+  if (arqueoHoy) {
+    saldoCaja = (arqueoHoy.saldo_inicial_cents || 0) + cajaDelDia;
+  }
+
+  const deuda =
+    sumar(cuentas.data as any[], "monto_cents", "debe") -
+    sumar(cuentas.data as any[], "monto_cents", "haber");
+
+  /*  Lo que falta por facturar  */
   const { data: sinFacturar } = await db
     .from("inv_ventas")
     .select("id, total_cents, fecha")
@@ -153,7 +206,7 @@ export async function GET() {
     .order("fecha", { ascending: false })
     .limit(50);
 
-  /* ── Las últimas ventas ── */
+  /*  Las últimas ventas  */
   const { data: ultimas } = await db
     .from("inv_ventas")
     .select("id, fecha, total_cents, metodo_pago, facturada, cliente:inv_clientes(nombre)")
@@ -189,6 +242,7 @@ export async function GET() {
         facturado: totalHoy,
         ventas: (ventasHoy.data || []).length,
         caja: cajaDelDia,
+        saldoCaja,
       },
 
       treintaDias: {

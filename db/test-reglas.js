@@ -57,12 +57,45 @@ function comprobar(desc, cond, extra) {
 
   /* ---------- Datos de prueba ---------- */
 
+  /* El cliente tiene que cumplir DOS cosas:
+
+     1. Con un `profiles` que lo tenga como `client_id`. Sin dueño, la
+        sección de ajustes manuales no puede fingir una sesión y se salta
+        entera —y el fallo que se ve es "no hay perfil con client_id",
+        que parece un problema de datos y es del criterio de selección.
+     2. Con el módulo contratado, porque `tiene_inventario()` lo
+        comprueba. Un cliente sin suscripción daría "no es tuyo" en
+        todos los ajustes, y sería correcto.
+
+     Lo que NO se pide es que esté "sin inventario". Se pedía, y fue un
+     error: `db/demo-kiosco.js` mete productos en el mismo cliente que
+     usa el test, así que en cuanto se montaba la demo para mirar las
+     pantallas, la prueba se quedaba sin dónde probar y se paraba con un
+     mensaje que parecía un problema de la base.
+
+     El test crea su propio producto con un nombre único y borra por ese
+     nombre al terminar. Con eso no necesita un cliente vacío, y puede
+     convivir con la demo. */
   const { rows: clientes } = await db.query(
-    "select c.id, c.nombre from clients c " +
-      "where not exists (select 1 from inv_productos p where p.client_id = c.id) limit 1"
+    `select c.id, c.nombre
+       from clients c
+      where exists (select 1 from profiles p where p.client_id = c.id)
+        and exists (
+          select 1 from suscripciones s
+           where s.client_id = c.id
+             and s.module_id = 'inventario'
+             and s.estado in ('activo','prueba')
+        )
+      order by c.creado_en
+      limit 1`
   );
+
   if (!clientes.length) {
-    console.log("  No hay ningún cliente sin inventario. No hay dónde probar.");
+    console.log(
+      "\n  No hay ningún cliente que sirva para probar. Hace falta uno con\n" +
+      "  dueño en `profiles` y con el módulo 'inventario' contratado.\n" +
+      "  El cliente de la demo sirve: node db/demo-kiosco.mjs\n"
+    );
     await db.end();
     process.exit(1);
   }
@@ -561,24 +594,75 @@ function comprobar(desc, cond, extra) {
      ============================================================ */
   console.log("\n── Limpiando ──\n");
 
-  /* En cascada, por el orden de las referencias. */
-  await db.query("delete from inv_caja where client_id = $1", [CLIENTE]);
-  await db.query("delete from inv_arqueos where client_id = $1", [CLIENTE]);
-  await db.query("delete from inv_cuentas where cliente_id = $1", [clienteTienda[0].id]);
-  await db.query("delete from inv_clientes where client_id = $1", [CLIENTE]);
-  await db.query(
-    "delete from inv_movimientos where variante_id in (select id from inv_variantes where producto_id = $1)",
+  /* ⚠️  SE BORRA LO DE ESTA PRUEBA, NO TODO LO DEL CLIENTE
+   * -----------------------------------------------------
+   * La primera versión hacía `delete from inv_productos where
+   * client_id = $1`, y con `delete from inv_ventas where client_id = $1`
+   * al lado. Eso vaciaba el inventario entero del cliente.
+   *
+   * Con el cliente de pruebas propio no pasaba nada. Pero al dejar de
+   * exigir un cliente "sin inventario" —para que la prueba pudiera
+   * convivir con la demo—, empezó a elegir el cliente de la demo, y la
+   * limpieza se llevó por delante los diez productos del kiosco de
+   * ejemplo. El resumen salió a cero y parecía un fallo de la API.
+   *
+   * Es el mismo error que un `drop table` sin `where`: la operación
+   * "dejar la base como estaba" solo está bien si lo que borra es lo
+   * que el script puso.
+   *
+   * Ahora todo sube por los identificadores que creó esta ejecución:
+   * el producto de prueba, sus variantes, y los clientes de prueba. */
+  const { rows: misVariantes } = await db.query(
+    "select id from inv_variantes where producto_id = $1",
     [productoId]
   );
-  await db.query("delete from inv_venta_items where venta_id in (select id from inv_ventas where client_id = $1)", [CLIENTE]);
-  await db.query("delete from inv_ventas where client_id = $1", [CLIENTE]);
-  await db.query("delete from inv_compra_items where compra_id in (select id from inv_compras where client_id = $1)", [CLIENTE]);
-  await db.query("delete from inv_compras where client_id = $1", [CLIENTE]);
-  await db.query("delete from inv_proveedores where client_id = $1", [CLIENTE]);
-  await db.query("delete from inv_variantes where producto_id = $1", [productoId]);
-  await db.query("delete from inv_productos where client_id = $1", [CLIENTE]);
+  const varIds = misVariantes.map((v) => v.id);
 
-  console.log("  datos de prueba borrados");
+  const { rows: misVentas } = await db.query(
+    "select id from inv_ventas where id = any($1::uuid[])",
+    [
+      [ventaId, venta2[0].id, venta3[0].id, venta4[0].id].filter(Boolean),
+    ]
+  );
+  const ventaIds = misVentas.map((v) => v.id);
+
+  const { rows: misCompras } = await db.query(
+    "select id from inv_compras where id = any($1::uuid[])",
+    [[compraId, compra4[0].id].filter(Boolean)]
+  );
+  const compraIds = misCompras.map((c) => c.id);
+
+  /* Caja y arqueos: solo los que se crearon en este script.
+     La caja se filtra por `concepto`, que aquí lleva la marca; los
+     arqueos, por la fecha y el saldo, que son los de este test. */
+  await db.query(
+    "delete from inv_caja where (concepto like 'PRUEBA-%' or venta_id = any($1::uuid[]))",
+    [ventaIds]
+  );
+  await db.query(
+    "delete from inv_arqueos where fecha = current_date and saldo_inicial_cents = 0 and saldo_real_cents = 999999"
+  );
+
+  if (varIds.length) {
+    await db.query("delete from inv_movimientos where variante_id = any($1::uuid[])", [varIds]);
+  }
+
+  await db.query("delete from inv_cuentas where cliente_id = $1", [clienteTienda[0].id]);
+  await db.query("delete from inv_clientes where id = $1", [clienteTienda[0].id]);
+
+  if (ventaIds.length) {
+    await db.query("delete from inv_venta_items where venta_id = any($1::uuid[])", [ventaIds]);
+    await db.query("delete from inv_ventas where id = any($1::uuid[])", [ventaIds]);
+  }
+  if (compraIds.length) {
+    await db.query("delete from inv_compra_items where compra_id = any($1::uuid[])", [compraIds]);
+    await db.query("delete from inv_compras where id = any($1::uuid[])", [compraIds]);
+  }
+
+  await db.query("delete from inv_variantes where producto_id = $1", [productoId]);
+  await db.query("delete from inv_productos where id = $1", [productoId]);
+
+  console.log("  datos de prueba borrados (solo los de esta ejecución)");
 
   await db.end();
 

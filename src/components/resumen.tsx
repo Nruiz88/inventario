@@ -41,7 +41,7 @@ type Datos = {
     enCero: number;
     lista: { id: string; nombre: string; variante: string; stock: number; minimo: number }[];
   };
-  hoy_: { facturado: number; ventas: number; caja: number };
+  hoy_: { facturado: number; ventas: number; caja: number; saldoCaja: number | null };
   treintaDias: { total: number; promedio: number };
   facturacion: { pendientes: number; monto: number };
   deuda: number;
@@ -92,11 +92,25 @@ export function Resumen() {
 
         <Panel>
           <div style={{ padding: "1rem" }}>
-            <Cifra
-              valor={dinero(d.hoy_.caja)}
-              etiqueta="En el cajón hoy"
-              tono={d.hoy_.caja < 0 ? "mal" : undefined}
-            />
+            {/* Con arqueo abierto se muestra lo que HAY. Sin él, no se
+                inventa un número: se dice que hay que abrir el arqueo, que
+                es lo que hay que hacer. */}
+            {d.hoy_.saldoCaja === null ? (
+              <div>
+                <div style={{ ...tipografia.chico, color: color.apagado, marginBottom: ".2rem" }}>
+                  En el cajón
+                </div>
+                <div style={{ ...tipografia.chico, color: color.aviso, lineHeight: 1.5 }}>
+                  Abrí el arqueo del día para saber cuánto hay.
+                </div>
+              </div>
+            ) : (
+              <Cifra
+                valor={dinero(d.hoy_.saldoCaja)}
+                etiqueta="En el cajón"
+                tono={d.hoy_.saldoCaja < 0 ? "mal" : undefined}
+              />
+            )}
           </div>
         </Panel>
 
@@ -244,9 +258,14 @@ function Tabla({
           key={f.id}
           style={{
             display: "grid",
-            gridTemplateColumns: "1fr auto 5.5rem",
+            /* La tercera columna es la del método de pago, y con 5.5rem
+               "cuenta corriente" se partía en dos líneas y empujaba el
+               precio. Con "auto" y un mínimo, el ancho lo decide el
+               contenido: "efectivo" ocupa poco y "cuenta corriente"
+               ocupa lo que necesita. */
+            gridTemplateColumns: "minmax(0, 1fr) auto minmax(4.5rem, auto)",
             gap: ".75rem",
-            alignItems: "center",
+            alignItems: "baseline",
             padding: ".6rem 1rem",
             borderBottom: `1px solid ${color.borde}`,
             fontSize: ".875rem",
@@ -258,7 +277,7 @@ function Tabla({
             {f.a}
           </div>
           <div style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{f.b}</div>
-          <div style={{ textAlign: "right" }}>{f.c}</div>
+          <div style={{ textAlign: "right", whiteSpace: "nowrap" }}>{f.c}</div>
         </div>
       ))}
     </div>
