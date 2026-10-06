@@ -76,7 +76,7 @@ console.log("\n  Abriendo el inventario en el navegador…\n");
    como título de ventana. Por eso se llama a `cmd` y no a `Start-Process`. */
 try {
   execFileSync("cmd", ["/c", "start", "", enlace], { stdio: "ignore" });
-  console.log("  ✓ Abierto. Tenés 5 minutos para entrar.");
+  console.log("  ✓ Abierto.");
 } catch {
   /* Si el comando del sistema falla, al menos queda el enlace en
      consola para copiarlo a mano. */
@@ -84,8 +84,8 @@ try {
   console.log("  " + enlace + "\n");
 }
 
-console.log("  Si al entrar dice que el enlace no vale, ya pasó el tiempo.");
-console.log("  Volvé a correr este comando: se genera uno nuevo.\n");
+console.log("  El enlace vive 90 minutos. Si al entrar dice que no vale,");
+console.log("  volvé a correr este comando: se genera uno nuevo.\n");
 console.log("  Una vez dentro, la sesión dura 4 horas.\n");
 
 process.exit(0);
