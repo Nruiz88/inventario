@@ -126,6 +126,33 @@ create or replace function stock_de_compra()
       end loop;
     end if;
 
+    -- Anular una compra RECIBIDA saca el stock que entró.
+    --
+    -- Sin esto, anular una compra deja la mercadería en el inventario
+    -- para siempre: el dueño anula porque se equivocó al anotar la
+    -- cantidad, ve que la compra ya no está, y no entiende por qué sigue
+    -- habiendo 200 gaseosas en el estante.
+    --
+    -- Y tiene que ser con una operación de salida, no borrando el
+    -- movimiento de entrada: los movimientos son la verdad, y si se
+    -- borra uno, el stock deja de cuadrar con su historia.
+    if new.estado = 'anulada' and old.estado = 'recibida' then
+      for v_linea in
+        select variante_id, cantidad from inv_compra_items where compra_id = new.id
+      loop
+        update inv_variantes v
+           set stock = greatest(0, v.stock - v_linea.cantidad),
+               actualizado_en = now()
+         where v.id = v_linea.variante_id;
+
+        insert into inv_movimientos
+          (variante_id, tipo, cantidad, motivo, compra_id)
+        values
+          (v_linea.variante_id, 'salida', v_linea.cantidad,
+           'devolución: compra anulada', new.id);
+      end loop;
+    end if;
+
     -- Volver a borrador después de haber recibido: no.
     if new.estado = 'borrador' and old.estado = 'recibida' then
       raise exception
@@ -142,7 +169,7 @@ create or replace function stock_de_compra()
   $$;
 
 comment on function stock_de_compra is
-  'El stock entra SOLO al pasar la compra a "recibida", no al crearla. Volver a borrador una compra recibida es error a propósito: se anula, que deja rastro.';
+  'El stock entra SOLO al pasar la compra a "recibida", no al crearla, y sale al anular una compra recibida. Volver a borrador una compra recibida es error a propósito: se anula, que deja rastro.';
 
 create trigger tr_stock_compra
   before insert or update on inv_compras

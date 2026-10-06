@@ -2,6 +2,11 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { exigeSessionApi } from "@/lib/acceso/sesion";
 import { getAdmin } from "@/lib/db";
+import { GET, PATCH } from "./historial";
+
+/* El historial y las acciones sobre una venta existente. El POST de
+   abajo es el que guarda una venta nueva. */
+export { GET, PATCH };
 
 /* =========================================================
    POST /api/ventas — guardar una venta

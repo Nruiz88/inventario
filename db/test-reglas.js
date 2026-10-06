@@ -298,9 +298,203 @@ function comprobar(desc, cond, extra) {
   comprobar("y es real - calculado", dif === 999999 - saldo, "999999 - " + saldo + " = " + (999999 - saldo));
 
   /* ============================================================
-     10. Lo que está bajo
+     10. Anular una compra saca el stock
      ============================================================ */
-  console.log("\n── 10. Las RLS ──\n");
+  console.log("\n── 10. Anular una compra recibida ──\n");
+
+  const { rows: compra4 } = await db.query(
+    "insert into inv_compras (client_id, factura_nro) values ($1, 'PRUEBA-4') returning id",
+    [CLIENTE]
+  );
+  await db.query(
+    "insert into inv_compra_items (compra_id, variante_id, cantidad, costo_unitario_cents) values ($1, $2, 5, 150)",
+    [compra4[0].id, varB]
+  );
+
+  /* El stock de varB se LEE ANTES de tocar nada, y no se supone.
+
+   Antes de esto ya se vendió una unidad en el paso 8, así que el número
+   de partida no es el que se acaba de escribir en la línea de arriba.
+   Fijarlo a ojo hace que la prueba pase o falle según lo que se hizo
+   antes, que es como una prueba acaba sin comprobar nada. */
+  const stockBAntes = await stockDe(varB);
+
+  await db.query("update inv_compras set estado = 'recibida' where id = $1", [compra4[0].id]);
+  const stockBRecibida = await stockDe(varB);
+  comprobar("al recibirla, el stock de la otra variante sube 5", stockBRecibida === stockBAntes + 5, stockBAntes + " → " + stockBRecibida);
+
+  await db.query("update inv_compras set estado = 'anulada' where id = $1", [compra4[0].id]);
+  const stockTrasAnular = await stockDe(varB);
+  comprobar("al anularla, vuelve al que tenía", stockTrasAnular === stockBAntes, stockBRecibida + " → " + stockTrasAnular);
+
+  const { rows: movAnul } = await db.query(
+    "select tipo, motivo from inv_movimientos where compra_id = $1 order by creado_en desc limit 1",
+    [compra4[0].id]
+  );
+  comprobar(
+    "y queda el movimiento de devolución",
+    movAnul[0] && movAnul[0].tipo === "salida",
+    JSON.stringify(movAnul[0] || {})
+  );
+
+  /* ============================================================
+     11. El ajuste manual de stock
+     ============================================================ */
+  console.log("\n── 11. Ajustes manuales ──\n");
+
+  /* ⚠️  ESTA PRUEBA NECESITA UNA SESIÓN DE VERDAD
+   * -----------------------------------------
+   * `inv_ajustar_stock()` comprueba de quién es la variante con
+   * `tiene_inventario()`, que mira `auth.uid()`. Esta prueba se conecta
+   * con la secret key, y detrás de la secret key NO hay ninguna
+   * persona: no hay `auth.uid()`, y la comprobación de propiedad es
+   * justamente lo que impide mover el stock de otro cliente.
+   *
+   * La primera versión de esta prueba pasaba `usuario_id = null` y
+   * esperaba que funcionara. Fallaba con "Ese producto no existe o no
+   * es tuyo", que es la respuesta CORRECTA: sin identidad no se ajusta
+   * nada. Un fallo de la prueba que resultaba ser la propiedad de
+   * seguridad funcionando.
+   *
+   * Para probarla bien hay que fingir una sesión: poner el
+   * `request.jwt.claim.sub` y una fila en `inventario_sesiones`. Se
+   * hace dentro de una transacción para que el `set local` desaparezca
+   * al terminar y no afecte a las demás pruebas.
+   */
+  const { rows: duenio } = await db.query(
+    "select p.id from profiles p where p.client_id = $1 limit 1",
+    [CLIENTE]
+  );
+
+  if (!duenio.length) {
+    comprobar("el cliente de prueba tiene dueño", false, "no hay perfil con client_id");
+  } else {
+    const USUARIO = duenio[0].id;
+
+    await db.query(
+      `insert into inventario_sesiones
+         (client_id, user_id, rol, access_token, csrf_token, token_hash, expira_en)
+       values ($1, $2, 'client', 'token-de-prueba', 'csrf-de-prueba',
+               'hash-de-prueba-' || gen_random_uuid()::text, now() + interval '1 hour')`,
+      [CLIENTE, USUARIO]
+    );
+
+    /* ---------- 11a. Sin identidad no se toca nada ---------- */
+
+    const antesSinSesion = await stockDe(varA);
+    let sinIdentidad = "no falló";
+    try {
+      await db.query(
+        "select inv_ajustar_stock($1, 'merma', 1, 'sin identidad', null)",
+        [varA]
+      );
+    } catch (e) {
+      sinIdentidad = e.message.slice(0, 60);
+    }
+    comprobar("sin sesión, no se ajusta", sinIdentidad !== "no falló", sinIdentidad);
+    comprobar("y el stock no se movió", (await stockDe(varA)) === antesSinSesion, "stock " + (await stockDe(varA)));
+
+    /* ---------- 11b. Con sesión, sí ---------- */
+
+    await db.query("begin");
+    await db.query("select set_config('request.jwt.claim.sub', $1, true)", [USUARIO]);
+
+    /* ⚠️  SAVEPOINT EN CADA FALLO ESPERADO
+     * -----------------------------------
+     * Un `raise exception` ABORTA la transacción entera. Después, todo lo
+     * que sigue da "current transaction is aborted, commands ignored
+     * until end of transaction block" y la prueba se para ahí.
+     *
+     * La primera versión hacía esto: guardaba la transacción para poder
+     * deshacerla, y fallaba en el primer caso que debía fallar. Lo que
+     * probaba era el `rollback`, no la validación.
+     *
+     * El patrón correcto es un `savepoint` antes de cada cosa que se
+     * espera que falle, y un `rollback to savepoint` cuando falla. Se
+     * deshace SOLO ese intento y la transacción sigue viva para las
+     * siguientes comprobaciones.
+     */
+    let sp = 0;
+    const intentar = async (texto, fn) => {
+      const nombre = "sp_" + ++sp;
+      await db.query(`savepoint ${nombre}`);
+      try {
+        const r = await fn();
+        await db.query(`rollback to savepoint ${nombre}`);
+        return { fallo: null, r };
+      } catch (e) {
+        await db.query(`rollback to savepoint ${nombre}`);
+        return { fallo: e.message, r: null };
+      }
+    };
+
+    const antes = await stockDe(varA);
+
+    const r1 = await intentar("sin motivo", () =>
+      db.query("select inv_ajustar_stock($1, 'merma', 3, '   ', $2)", [varA, USUARIO])
+    );
+    comprobar("sin motivo no deja mover nada", r1.fallo !== null, (r1.fallo || "no falló").slice(0, 50));
+    comprobar("y el stock no se movió", (await stockDe(varA)) === antes, "stock " + (await stockDe(varA)));
+
+    const { rows: trasMerma } = await db.query(
+      "select inv_ajustar_stock($1, 'merma', 2, 'se rompieron dos', $2) as stock",
+      [varA, USUARIO]
+    );
+    comprobar("una merma resta", Number(trasMerma[0].stock) === antes - 2, "stock " + trasMerma[0].stock);
+
+    const { rows: trasDevol } = await db.query(
+      "select inv_ajustar_stock($1, 'devolucion', 2, 'el cliente devolvio', $2) as stock",
+      [varA, USUARIO]
+    );
+    comprobar("una devolución suma", Number(trasDevol[0].stock) === antes, "stock " + trasDevol[0].stock);
+
+    const r2 = await intentar("merma excesiva", () =>
+      db.query("select inv_ajustar_stock($1, 'merma', 99999, 'error de tipeo', $2)", [varA, USUARIO])
+    );
+    comprobar("una merma mayor que el stock se rechaza", r2.fallo !== null, (r2.fallo || "no falló").slice(0, 70));
+    comprobar("y no deja el stock en negativo", (await stockDe(varA)) === antes, "stock " + (await stockDe(varA)));
+
+    const r3 = await intentar("cantidad cero", () =>
+      db.query("select inv_ajustar_stock($1, 'merma', 0, 'nada', $2)", [varA, USUARIO])
+    );
+    comprobar("una cantidad de cero se rechaza", r3.fallo !== null, (r3.fallo || "no falló").slice(0, 50));
+
+    const r4 = await intentar("producto ajeno", () =>
+      db.query("select inv_ajustar_stock(gen_random_uuid(), 'merma', 1, 'inventado', $1)", [USUARIO])
+    );
+    comprobar("un producto que no existe se rechaza", r4.fallo !== null, (r4.fallo || "no falló").slice(0, 50));
+
+    /* ---------- 11c. El movimiento lleva su motivo ----------
+     *
+     * ANTES del rollback, y esto es lo que faltaba: los movimientos
+     * que se acabaron de crear están dentro de la transacción, así que
+     * después de deshacerla no existen. Comprobándolos fuera sale el
+     * último movimiento que había de antes —el de la venta— y la
+     * prueba falla por una razón que no tiene que ver con lo que
+     * comprueba.
+     *
+     * La primera versión fallaba exactamente así, con
+     * `{"tipo":"salida","motivo":"venta"}`: el motivo correcto, pero del
+     * movimiento equivocado. */
+    const { rows: movAjuste } = await db.query(
+      "select tipo, motivo from inv_movimientos where variante_id = $1 order by creado_en desc limit 1",
+      [varA]
+    );
+    comprobar(
+      "el movimiento se anota con su motivo",
+      movAjuste[0] && /merma|devolucion/.test(movAjuste[0].motivo || ""),
+      JSON.stringify(movAjuste[0] || {})
+    );
+
+    await db.query("rollback");
+
+    await db.query("delete from inventario_sesiones where csrf_token = 'csrf-de-prueba'");
+  }
+
+  /* ============================================================
+     12. Las RLS
+     ============================================================ */
+  console.log("\n── 12. Las RLS ──\n");
 
   /* Se comprueba TODA tabla que este servicio crea, no solo las de
      negocio. `inventario_migrations` entra en la lista a propósito: es la

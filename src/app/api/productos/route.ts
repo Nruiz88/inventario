@@ -2,6 +2,13 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { exigeSessionApi } from "@/lib/acceso/sesion";
 
+import { PATCH, DELETE } from "./modificar";
+
+/* PATCH y DELETE viven en `modificar.ts` porque Next solo admite un
+   `route.ts` por directorio, y el canje del ticket ya ocupa la mitad de
+   este. Lo que hay aquí es GET y POST. */
+export { PATCH, DELETE };
+
 /* =========================================================
    GET/POST /api/productos
    ---------------------------------------------------------
