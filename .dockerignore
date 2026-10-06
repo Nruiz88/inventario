@@ -1,6 +1,6 @@
 # Lo que no va en la imagen.
 #
-# Todo lo de aquí acaba DENTRO del contenedor si no se excluye, y
+# Todo lo de aquÃ­ acaba DENTRO del contenedor si no se excluye, y
 # `node_modules` de un `npm install` del host no funciona en Linux.
 
 node_modules
@@ -17,14 +17,16 @@ npm-debug.log*
 
 # La demo y los scripts que usan la base de datos. En el contenedor no
 # se ejecutan: corren contra la base REAL, y `db/demo-kiosco.mjs` mete
-# datos de ejemplo en producción si alguien lo lanza a mano.
+# datos de ejemplo en producciÃ³n si alguien lo lanza a mano.
 db/*.mjs
 db/*.cjs
 db/*.js
 db/_*
 capturas
+cookies.txt
+body.json
 
-# Documentación: no la ejecuta nadie en el contenedor.
+# DocumentaciÃ³n: no la ejecuta nadie en el contenedor.
 README.md
 COOLIFY.md
 AGENTS.md

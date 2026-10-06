@@ -11,6 +11,28 @@ next-env.d.ts
 /build
 
 # ---------------------------------------------------------------------
+# Restos de las pruebas
+# ---------------------------------------------------------------------
+# Estos dos se colaron en un commit y acabarían en un repositorio
+# público. No contenían nada sensible —el tarro de cookies estaba vacío
+# y el ticket en blanco— pero el patrón es el peligroso:
+#
+#   · `cookies.txt`   lo escribe `curl -c` en `db/test-entrada.mjs`. Con
+#                     la sesión viva, es un portador: quien lo lea entra
+#                     como ese cliente durante las 4 horas que dura.
+#
+#   · `body.json`     el cuerpo del POST a /api/entrar, con el ticket.
+#                     Y el ticket lleva DENTRO el access_token de
+#                     Supabase.
+#
+# Los dos están aquí porque los dos se crean al probar, y la próxima vez
+# el ticket sí va a estar lleno.
+cookies.txt
+body.json
+*.cookie
+*-cookies.txt
+
+# ---------------------------------------------------------------------
 # Entorno
 # ---------------------------------------------------------------------
 # `.env*` primero, y LUEGO la excepción de `.env.example`.
