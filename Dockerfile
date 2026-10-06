@@ -46,6 +46,31 @@ RUN npm run build
 FROM base AS runner
 WORKDIR /app
 
+# ⚠️  wget ES OBLIGATORIO, NO ES ADORNO
+# -------------------------------------
+# Alpine no trae ni curl ni wget. Y Coolify, al desplegar, espera a que
+# el contenedor esté sano y lo pregunta con curl o wget por dentro:
+#
+#     Attempt 10 of 10 | Healthcheck status: "unhealthy"
+#     Healthcheck logs: /bin/sh: curl: not found
+#     wget: can't connect to remote host: Connection refused
+#     New container is not healthy, rolling back to the old container.
+#
+# Lo que no dice ese log, y es lo que confunde: la aplicación estaba
+# perfecta. El propio log del contenedor al lado pone
+#
+#     ▲ Next.js 16.3.8  Ready in 0ms  Network: http://0.0.0.0:3000
+#
+# O sea, el server levantado y escuchando. Lo que falla es que nadie
+# podía preguntarle cómo estaba, porque la pregunta no se puede hacer
+# sin una herramienta que no está. Coolify ve diez intentos fallidos,
+# asume que está mal y deshace el despliegue, dejando el contenedor
+# anterior.
+#
+# Con wget dentro, la misma comprobación responde y la app entra
+# sana. Son 300 KB en una imagen que ya pesa cientos de MB.
+RUN apk add --no-cache wget
+
 ENV NODE_ENV=production
 ENV PORT=3000
 
