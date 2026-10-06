@@ -27,8 +27,10 @@
        el ticket de verdad, con la sesión de la persona que está
        pulsando. Este script es el atajo de desarrollo, no el camino
        real.
-     · recuerda que el ticket caduca en 5 minutos, así que hay que
-       abrirlo enseguida. Si da 401, es eso y no otra cosa.
+     · el ticket vive 90 minutos en desarrollo, y en producción sigue
+       siendo 5. La diferencia es deliberada y está explicada en
+       `lib/tickets.js` del panel: el token que va dentro del ticket
+       dura una hora, así que más de eso no sirve de nada.
 
    USO
      node db/dev-ticket.mjs                  # el primer cliente normal
@@ -251,7 +253,44 @@ async function clienteDe(userId, email) {
    dice "ese enlace no vale", que no señala que el problema sea la
    firma. Por eso está al lado y no escondido en una librería. */
 
-function firmar({ userId, clientId, rol, accessToken, segundos = 300 }) {
+/* ── Los minutos de vida ──
+   Por defecto 90 en desarrollo, y el tope también es 90.
+
+   El motivo del tope es el mismo que en el panel: el `access_token` de
+   Supabase que va DENTRO del ticket vive una hora. Pedir cuatro horas
+   produce un enlace firmado válido cuatro horas que en realidad no
+   sirve para nada después de la primera, y lo que queda es un enlace en
+   el historial del navegador durante cuatro horas.
+
+   Es decir: alargar el ticket NO alarga la sesión. La sesión son las
+   cuatro horas de la cookie, y esa se crea al entrar. Lo que dura cinco
+   minutos es el.bootstrap. */
+const MINUTOS_POR_DEFECTO = 90;
+const MINUTOS_TOPE = 90;
+
+function minutosPedidos() {
+  const i = process.argv.indexOf("--minutos");
+  if (i < 0) return MINUTOS_POR_DEFECTO;
+
+  const n = Number(process.argv[i + 1]);
+  if (!Number.isFinite(n) || n <= 0) {
+    console.error("\n✗ --minutos necesita un número mayor que cero.\n");
+    process.exit(1);
+  }
+
+  if (n > MINUTOS_TOPE) {
+    console.log(
+      `\n  · Pediste ${n} minutos y el tope es ${MINUTOS_TOPE}.\n` +
+        `    El token de Supabase que va dentro del ticket dura una hora, así\n` +
+        `    que más de eso no sirve de nada.\n`
+    );
+  }
+
+  return Math.min(Math.round(n), MINUTOS_TOPE);
+}
+
+function firmar({ userId, clientId, rol, accessToken, minutos }) {
+  const segundos = minutos * 60;
   const ahora = Math.floor(Date.now() / 1000);
   const payload = {
     uid: userId,
@@ -302,6 +341,7 @@ const ticket = firmar({
   clientId,
   rol: esStaff ? "staff" : "client",
   accessToken,
+  minutos: minutosPedidos(),
 });
 
 const puerto = process.env.PORT || "3010";
@@ -324,11 +364,14 @@ console.log("\n═════════════════════�
 console.log(`  Cliente: ${nombre}`);
 console.log(`  Usuario: ${elegido.email}`);
 console.log(`  Rol:     ${esStaff ? "staff" : "client"}`);
-console.log(`  Caduca:  en 5 minutos`);
+console.log("  Caduca:  en " + minutosPedidos() + " minutos  (--minutos N lo cambia, hasta 90)");
 console.log("══════════════════════════════════════════════════════\n");
 console.log("  Ábrelo en el navegador:\n");
 console.log("  " + enlace + "\n");
-console.log("  ⚠️  Caduca en 5 minutos. Si da 401, es que llegó tarde.\n");
+console.log(
+  "  Si da 401, es que llegó tarde. Corré otra vez el comando.\n" +
+    "  Una vez dentro, la sesión dura 4 horas.\n"
+);
 console.log("  Ojo: este enlace lleva el access_token de Supabase dentro, en el");
 console.log("  fragmento. No lo mandes a nadie y no lo pegues en un chat.\n");
 process.exit(0);
