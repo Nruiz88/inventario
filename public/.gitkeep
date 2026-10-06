@@ -1,0 +1,1 @@
+﻿# La imagen de Docker hace COPY public, y si no existe el build falla.

@@ -34,6 +34,20 @@ const nextConfig: NextConfig = {
   typescript: {
     ignoreBuildErrors: false,
   },
+
+  /* ⭐ `standalone`: SIN ESTO LA IMAGEN NO ARRANCA
+   * ------------------------------------------------------
+   * Next genera una copia mínima de lo que hace falta para arrancar, en
+   * vez de llevar `node_modules` entero a la imagen final.
+   *
+   * Sin esto, el `Dockerfile` copia `.next/standalone`, esa carpeta no
+   * existe, y el build falla. Es el primer error que da un despliegue con
+   * Dockerfile y no dice nada de por qué.
+   *
+   * El bot (`D:\webs\wweb`) ya lo tiene. Este servicio nació de la
+   * plantilla, y la plantilla no lo traía, porque no traía Dockerfile.
+   */
+  output: "standalone",
 };
 
 export default nextConfig;

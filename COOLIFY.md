@@ -1,281 +1,298 @@
-# Desplegar un microservicio nuevo
+# =========================================================
+   Desplegar en Coolify
+   ---------------------------------------------------------
+   Esto no es "cómo se despliega". Es lo que hay que poner, en el orden
+   en que hay que ponerlo, y los sitios donde se equivocó alguien antes.
 
-Esto no es la guía de "cómo se despliega". Es la lista de **los fallos que pasaron de verdad**, para no repetirlos.
+   Lo que hay aquí son fallos que pasaron de verdad en este proyecto. Los
+   que no han pasado están en la documentación de Coolify.
 
----
+   ── EL ORDEN, Y POR QUÉ EN ESTE ──
+   ---------------------------------
+   1. Código en un repositorio, con remoto.
+   2. Aplicar las migraciones.
+   3. Crear la app en Coolify apuntando al repositorio.
+   4. Poner las variables.
+   5. Desplegar.
+   6. Registrar el módulo en el panel.
+   7. Abrir el enlace en un navegador de verdad.
 
-## 1. La tabla de sesiones necesita RLS sin políticas
+   Las migraciones van ANTES del primer despliegue, y no por purismo. Si
+   el contenedor arranca sin tablas, el proxy deja pasar, la sesión se
+   crea, y la primera consulta falla con "relation inv_ventas does not
+   exist". Un cliente ve una pantalla en blanco y el log dice algo que no
+   tiene nada que ver con la causa.
 
-La migración `db/001_sesiones.sql` la crea. Si te olvidas de la línea:
+   Al revés también falla: si primero desplegás y después aplicás las
+   migraciones, hay una ventana en la que la app está publicada y no
+   funciona. Con un solo cliente no pasa nada. Con dos, sí.
 
-```sql
-alter table inventario_sesiones enable row level security;
-```
+   ── LO QUE VA EN VARIABLES DE ENTORNO ──
+   ---------------------------------------
+   Estas siete, y solo estas:
 
-entonces `authenticated` puede leer **todas** las sesiones del sistema, y con eso los tokens. Con RLS encendido y **sin políticas**, la tabla es invisible para el navegador y solo la alcanza la secret key.
+   | Variable | De dónde sale |
+   |---|---|
+   | `SUPABASE_URL` | `.env.local` de este proyecto |
+   | `SUPABASE_SECRET_KEY` | ídem. **Empieza por `sb_secret_`** |
+   | `SUPABASE_PUBLISHABLE_KEY` | ídem. Empieza por `sb_publishable_` |
+   | `SERVICE_SECRET` | ídem. **Tiene que ser IGUAL al del panel** |
+   | `BUSINESS_TIMEZONE` | `America/Argentina/Buenos_Aires` |
+   | `APP_URL` | El dominio de este servicio |
+   | `NEXT_PUBLIC_PANEL_URL` | El panel. Sin barra final |
 
----
+   ### Lo que NO va
 
-## 2. ⚠️ En Coolify: `is_preview` tiene que ser FALSE
+   - **`DATABASE_URL`**. Lleva la contraseña de la base dentro y solo la
+     usan las migraciones, que corren en tu máquina. Meterla en el
+     contenedor es poner una contraseña en un sitio donde antes no
+     estaba.
 
-**Este es el que más rato costó.**
+     Y la app no la lee nunca: `src/lib/db.ts` se vale de las dos claves
+     de Supabase. Por eso no sale en `.env.example` como obligatoria.
 
-Las variables de entorno que se crean por la API de Coolify vienen marcadas `is_preview: true`, lo que significa *solo para despliegues de preview*. En un despliegue normal **no llegan al contenedor**.
+   - **`NODE_ENV`**. Coolify lo pone solo. Ver el punto 5.
 
-El síntoma: el servicio arranca y dice
+   - **`PORT`**. Lo asigna Coolify. Si lo fijás, el contenedor escucha en
+     un puerto que el proxy no busca, y el health check falla sin decir
+     por qué.
 
-```
-[db] falta SUPABASE_URL o SUPABASE_SECRET_KEY
-```
+   ── EL SECRETO COMPARTIDO ──
+   --------------------------
+   `SERVICE_SECRET` tiene que ser **carácter por carácter** el mismo que
+   el del panel. Si difieren, el canje responde 401 y el mensaje es "ese
+   enlace no vale", que no dice nada de por qué.
 
-y en Coolify, en la lista, están todas puestas.
+   **Lo primero que hay que mirar si da 401 es comparar las LONGITUDES.**
+   Si no coinciden, ya sabés lo que es, y se resuelve en un minuto.
 
-Lo que hay que hacer: marcar `is_preview = false` en cada una. O desde la interfaz, que el interruptor se llame algo como "Available at Preview" y deba estar apagado.
+   ─────────────────────────────────────────────────────────────────────
+   1. ⭐ EL TICKET, Y POR QUÉ NO SE COMPRUEBA EN EL SERVIDOR
+   ─────────────────────────────────────────────────────────────────────
 
-Cómo comprobarlo, que es lo que de verdad sirve:
+   El acceso lo comprueba el proxy (cookie) y las políticas de RLS. El
+   proxy **no es la barrera de seguridad**: solo evita pintar páginas
+   vacías a quien no tiene sesión. La barrera son las políticas.
 
-```bash
-# dentro del contenedor
-docker exec <contenedor> env | grep SUPABASE
-```
+   Un servicio que se apoya solo en el middleware tiene un fallo de
+   seguridad con toda la pinta de funcionar.
 
-Si no salen, es esto.
+   ─────────────────────────────────────────────────────────────────────
+   2. ⭐ `is_preview` TIENE QUE SER FALSE
+   ─────────────────────────────────────────────────────────────────────
 
----
+   **Este es el que más rato costó, y ya costó dos veces.**
 
-## 3. Dos clientes de Supabase, y no uno
+   Las variables que se crean por la API de Coolify vienen marcadas
+   `is_preview: true`, que significa *solo para despliegues de preview*.
+   En un despliegue normal **no llegan al contenedor**.
 
-- `SUPABASE_SECRET_KEY` para el servidor. Salta RLS.
-- `SUPABASE_PUBLISHABLE_KEY` para el cliente con token de usuario. Aplica RLS.
+   El síntoma: el servicio arranca y dice
 
-Se confunden porque las dos se llaman "la clave de Supabase". Si las pones cambiadas, la app funciona en local (donde el error es el mismo) y en producción se rompe de formas distintas según qué ruta se ejecutó.
+       [db] falta SUPABASE_URL o SUPABASE_SECRET_KEY
 
-La de RLS empieza por `sb_secret_`; la de usuario es más corta y empieza por `sb_publishable_`.
+   y en Coolify, en la lista, están todas puestas.
 
----
+   Lo que hay que hacer: marcar `is_preview = false` en cada una. O desde
+   la interfaz, que el interruptor se llame algo como "Available at
+   Preview" y deba estar **apagado**.
 
-## 4. `SERVICE_SECRET` tiene que ser IGUAL al del panel
+   Cómo comprobarlo, que es lo que de verdad sirve:
 
-Y distinto de `SESSION_SECRET`.
+       docker exec <contenedor> env | grep SUPABASE
 
-Si no coinciden, el canje devuelve 401 con "ese enlace no vale", que no dice nada de por qué. **Lo primero que hay que mirar si da 401 es si los dos secretos tienen la misma longitud.** Esa comparación la resuelve el fallo en un minuto.
+   Si no salen, es esto.
 
----
+   ─────────────────────────────────────────────────────────────────────
+   3. ⭐ `NEXT_PUBLIC_*` SE HORNEAN EN EL BUILD
+   ─────────────────────────────────────────────────────────────────────
 
-## 5. La cookie en producción necesita `secure`
+   `NEXT_PUBLIC_PANEL_URL` se sustituye al compilar y queda **dentro del
+   JavaScript** que baja el navegador. Cambiarla después no cambia nada
+   hasta que se reconstruya la imagen.
 
-```ts
-secure: process.env.NODE_ENV === "production"
-```
+   El síntoma: la app levanta, todo funciona, y los enlaces "vuelve a tu
+   panel" llevan al sitio anterior. Sin ningún error en ningún log.
 
-Sin esto, detrás de un proxy HTTPS el navegador **descarta la cookie entera** y el servicio parece roto sin decir nada: entra, canjea bien, y a la siguiente página no hay sesión.
+   Es la trampa más silenciosa de Next en Docker, y por eso el
+   `Dockerfile` avisa de ella en mayúsculas.
 
-Ojo con esto: `request.url` puede decir `http` aunque el navegador venga por `https`, si no se leen las cabeceras del proxy. `secure` se decide con `NODE_ENV`, no con `request.url`.
+   ─────────────────────────────────────────────────────────────────────
+   4. ⭐ `output: "standalone"` O LA IMAGEN NO ARRANCA
+   ─────────────────────────────────────────────────────────────────────
 
----
+   El `Dockerfile` copia `.next/standalone`. Si `next.config.ts` no tiene
+   `output: "standalone"`, esa carpeta no existe y el build falla.
 
-## 6. El `matcher` del proxy, o la app va lentísima
+   El error aparece al final de la compilación de Docker, después de dos
+   minutos instalando dependencias, y no dice nada de por qué.
 
-```ts
-matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\..*).*)"]
-```
+   ─────────────────────────────────────────────────────────────────────
+   5. ⭐ `NODE_ENV=production` EN EL BUILD
+   ─────────────────────────────────────────────────────────────────────
 
-El `.*\\..*` saca de la lista todo lo que tiene un punto: los `.js`, `.css`, las imágenes. Sin eso, una página con 40 recursos hace 40 consultas a la tabla de sesiones para comprobar una cookie que no ha cambiado.
+   Coolify avisa de esto y acierta: con `NODE_ENV=production` en el paso
+   de build, `npm ci` **salta las devDependencies**. Este proyecto
+   compila con TypeScript, y `typescript` es una devDependency.
 
-No es solo la base: son 40 `await` en el camino crítico de la primera pintura, y en un móvil se nota.
+   O no se marca "Available at Buildtime", o se pone
+   `NODE_ENV=development` **solo durante el build**. El runner ya pone
+   `NODE_ENV=production` en el `Dockerfile`.
 
----
+   ─────────────────────────────────────────────────────────────────────
+   6. ⭐ EL TYPECHECK PARTA EL DESPLIEGUE, Y AQUÍ SÍ
+   ─────────────────────────────────────────────────────────────────────
 
-## 7. El proxy NO es la seguridad
+   `next.config.ts` tiene `typescript.ignoreBuildErrors: false`. Eso
+   significa que un error de tipos **corta el build**.
 
-Solo evita pintar páginas vacías. La seguridad son las políticas de RLS.
+   Es deliberado, y es la diferencia con el bot: `D:\webs\wweb` tiene
+   `ignoreBuildErrors: true`, así que el bot que está en producción
+   despliega con los errores de tipos que quiera.
 
-Un servicio que se apoya solo en el middleware tiene un fallo de seguridad con toda la pinta de funcionar: con `searchParams.get("id")` sin comprobar, el proxy deja pasar la petición, RLS filtra `bots` pero no tu tabla, y nadie se entera hasta que alguien ve datos ajenos.
+   Un minuto de typecheck es un coste conocido. Un fallo de tipos en
+   producción es un cliente que no puede entrar.
 
-**La regla:** el id siempre sale de una función que usa el cliente con RLS. Nunca de la URL.
+   Antes de desplegar, en local:
 
----
+       npm run test:base      # 38 comprobaciones contra la base
+       npm run test:entrada   # 13 del camino de acceso
+       npm run test:dashboard  # 36 del CRUD
+       npm run build
 
-## 8. La firma se comprueba ANTES de deserializar
+   Las tres primeras van contra la base real y son las que encuentran los
+   fallos que no se ven leyendo el código.
 
-Si primero haces `JSON.parse` del payload y luego compruebas la firma, alguien puede mandarte un payload arbitrario y lo deserializas antes de comprobar nada.
+   ─────────────────────────────────────────────────────────────────────
+   7. ⭐ COPIAR LAS MIGRACIONES, NO SOLO LAS TABLAS
+   ─────────────────────────────────────────────────────────────────────
 
-El orden correcto: cortar por el punto, comprobar la firma, y solo entonces leer el cuerpo.
+   Este servicio tiene **funciones** además de tablas: las que mueven el
+   stock (`inv_registrar_venta`, `inv_ajustar_stock`), la regla de
+   acceso (`tiene_inventario`) y los triggers.
 
----
+   Sin esas funciones, el servicio arranca y **cada venta falla**. No
+   hay error al arrancar: hay un 409 cuando alguien cobra.
 
-## 9. ⚠️ El `.env.example` NO lleva claves de verdad
+   Se aplican antes del despliegue, desde la máquina:
 
-Un `.example` con la clave real escrita es una bomba de relojería: el día que alguien lo sube, la clave está en el repositorio para siempre.
+       npm run migrate
+       npm run migrate:estado     # tiene que decir 0 pendientes
 
-En este repositorio ya había uno con claves de producción de verdad (`EVOLUTION_API_KEY`, `WEBHOOK_SECRET`, la URL de MariaDB con contraseña). Estaba ignorado por `.gitignore`, así que no se había filtrado, pero se borró igualmente.
+   ─────────────────────────────────────────────────────────────────────
+   8. ⭐ LAS POLÍTICAS RLS, Y QUE EXISTAN
+   ─────────────────────────────────────────────────────────────────────
 
-Lo que va en un `.example` es la **forma** de la variable, no su valor.
+   Una tabla con RLS encendido y **cero políticas** es invisible. No
+   falla: la consulta devuelve cero filas, sin error.
 
----
+   Pasó aquí con `inv_ventas`. El síntoma era que el POST de una venta
+   devolvía 200 con el total correcto, y un segundo después el historial
+   venía vacío y anular daba 404.
 
-## 10. El test tiene que ejecutar el código que se rompe
+   Para comprobarlo:
 
-El bug más caro que ha habido en este sistema: la entrada al bot **nunca funcionó desde un navegador**, y todas las pruebas daban verde.
+       node db/test-reglas.js
 
-La página mandaba el hash con el prefijo `ticket=` pegado. Las pruebas hacían el POST ellas mismas, con el ticket ya limpio, y **no pasaban por esa línea**. El bug no estaba en el servidor, estaba en el navegador, y no había ningún test que lo ejecutara.
+   Incluye una comprobación de que toda tabla de negocio con RLS tiene al
+   menos una política. Esa comprobación no estaba, y por eso el fallo
+   pasó.
 
-Cómo se cubre:
+   ─────────────────────────────────────────────────────────────────────
+   9. ⭐ EL MATCHER DEL PROXY, O LA APP VA LENTÍSIMA
+   ─────────────────────────────────────────────────────────────────────
 
-- El parseo del hash va en **su propio fichero** (`hash-ticket.ts`), no dentro del componente. Así se puede probar sin React ni DOM.
-- La prueba importa **ese fichero**, no una copia. Una copia se queda vieja el primer día que cambia el original y sigue dando verde.
-- Y hay una prueba que **mira el JavaScript publicado** y comprueba que recorta el prefijo. Es frágil a propósito: si el minificador cambia de forma, que falle antes que pasar sin mirar.
+       matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\..*).*)"]
 
----
+   El `.*\\..*` saca de la lista todo lo que tiene un punto. Sin eso, una
+   página con 40 recursos hace 40 consultas a la tabla de sesiones para
+   comprobar una cookie que no ha cambiado.
 
----
+   No es solo la base: son 40 `await` en el camino crítico de la primera
+   pintura, y en un móvil se nota.
 
-## 11. ⚠️ RLS hay que ENCENDERLO, no solo escribir las políticas
+   ─────────────────────────────────────────────────────────────────────
+   10. ⭐ LA COOKIE EN PRODUCCIÓN NECESITA `secure`
+   ─────────────────────────────────────────────────────────────────────
 
-Este es el segundo fallo más caro, y es del mismo tipo que el primero.
+       secure: process.env.NODE_ENV === "production"
 
-En `db/003_rls.sql` se crearon todas las políticas. En seis tablas
-faltaba la línea:
+   Sin esto, detrás de un proxy HTTPS el navegador **descarta la cookie
+   entera** y el servicio parece roto sin decir nada: entra, canjea
+   bien, y a la siguiente página no hay sesión.
 
-```sql
-alter table inv_productos enable row level security;
-```
+   `request.url` puede decir `http` aunque el navegador venga por
+   `https`, si no se leen las cabeceras del proxy. `secure` se decide con
+   `NODE_ENV`, no con `request.url`.
 
-**Una tabla con políticas y RLS apagado no filtra nada.** Las políticas
-existen, están escritas, son correctas... y no se miran. La consulta
-devuelve filas de otros clientes sin decir nada, y todo parece
-funcionar.
+   ─────────────────────────────────────────────────────────────────────
+   11. EL CERTIFICADO
+   ─────────────────────────────────────────────────────────────────────
 
-No hay error. No hay aviso. Es la forma más silenciosa de tener un
-agujero de seguridad.
+   El dominio tiene que tener el certificado válido **antes** del primer
+   despliegue, o el navegador lo rechaza al entrar y el canje falla.
 
-Dos cosas que lo hacen más fácil de que pase:
+   Con los subdominios de duckdns: Let\'s Encrypt los emite, pero
+   Coolify tiene que resolver el dominio. Si el DNS todavía no apunta,
+   falla y no hay nada que ver.
 
-- **Una migración de políticas y una de RLS separadas fallan por
-  separado.** Si escribes las políticas y se rompe algo en medio, unas
-  quedan y otras no, y la de RLS se queda sin aplicar.
-- **Nadie mira `relrowsecurity`.** Leer el SQL y ver que falta un
-  `enable` es fácil. Acordarse de mirar después, no.
+   ─────────────────────────────────────────────────────────────────────
+   12. LO QUE NO SE DESPLIEGA
+   ─────────────────────────────────────────────────────────────────────
 
-Por eso `db/005_rls_encendido.sql` existe y enciende RLS **en todas**,
-también en las que ya lo tenían. Y por eso `npm run test:base` comprueba
-`relrowsecurity` tabla por tabla, incluida `inventario_migrations`: sin
-RLS, cualquiera que pueda escribir en la base podría modificar el
-registro de migraciones y hacer que la siguiente creyera que ya está
-aplicada.
+   El `.dockerignore` deja afuera `db/*.mjs`, y a propósito: `db/demo-kiosco.mjs`
+   mete datos de ejemplo **en la base real** si alguien lo lanza dentro
+   del contenedor.
 
-La regla: **RLS encendido y sin políticas = invisible para el
-navegador.** Con políticas = solo lo que corresponde. Nunca al revés.
+   Las migraciones también quedan afuera, y también a propósito. Se
+   aplican desde la máquina, una vez, antes del despliegue. Un contenedor
+   que aplica migraciones al arrancar es un contenedor que dos instancias
+   pueden aplicar a la vez.
 
----
+   ─────────────────────────────────────────────────────────────────────
+   EL CHECKLIST DE ARRIBA
+   ─────────────────────────────────────────────────────────────────────
 
-## 12. ⚠️ Los triggers se prueban contra la base, no con unit tests
+       1.  npm run test:base
+       2.  npm run test:entrada
+       3.  npm run test:dashboard
+       4.  npm run build
+       5.  git push
+       6.  npm run migrate          ← desde la máquina
+       7.  npm run migrate:estado   ← tiene que decir 0 pendientes
+       8.  App en Coolify: build pack Dockerfile, puerto 3000
+       9.  Las 7 variables, con is_preview = FALSE
+       10. docker exec <contenedor> env | grep SUPABASE   ← tiene que salir
+       11. Poner modules.url en el panel, con la URL pública
+       12. Abrir el enlace en un navegador de verdad
 
-Un trigger que no dispara **no da ningún error**. La venta se guarda, el
-stock no baja, y el dueño vende más de lo que tiene durante semanas sin
-darse cuenta.
+   El 12 no lo sustituye ninguna prueba. Es el que detectó el bug más
+   caro del bot, y el 10 es el que detecta el problema del 2.
 
-`vitest` no ejecuta triggers: para probarlos hay que ir contra la base
-real. De ahí `npm run test:base` (`db/test-reglas.js`).
+   ─────────────────────────────────────────────────────────────────────
+   CUANDO ALGO VA MAL
+   ─────────────────────────────────────────────────────────────────────
 
-Tres fallos reales que encontró, y que ninguna prueba unitaria habría
-visto:
+   | Síntoma | Dónde mirar |
+   |---|---|
+   | `[db] falta SUPABASE_URL` | Punto 2. Las variables no llegan |
+   | 401 "ese enlace no vale" | `SERVICE_SECRET` no coincide |
+   | El canje va bien y luego no hay sesión | Punto 10. Falta `secure` |
+   | Va lento, el log lleno de lo mismo | Punto 9 |
+   | Los enlaces del panel van al sitio viejo | Punto 3. Hay que Rebuild |
+   | El build falla al final, en Docker | Punto 4. Falta `standalone` |
+   | El build falla al compilar | Punto 5. Faltan devDependencies |
+   | Venta con 409 | Punto 7. Faltan las funciones |
+   | El historial vacío pero el POST devuelve 200 | Punto 8. Políticas |
+   | No entra en el navegador, el panel va bien | El panel, no este servicio |
+   | 401 solo en el navegador, nunca en las pruebas | El fragmento `#ticket=` |
 
-- **El trigger de caja se disparaba en el INSERT**, cuando el total
-  todavía era 0 (los ítems se añaden después, y el total lo calcula
-  otro trigger). Metía en caja una entrada de 0, y la base la rechazaba
-  con un error de `check constraint` que no decía qué constraint era.
-- **`anular_venta` usaba `if new.anulada and not old.anulada`.** Con
-  anular → desanular → anular, que es lo que pasa cuando alguien se
-  equivoca dos veces, el stock se devuelve **dos veces**. La corrección
-  es comprobar si YA hay un movimiento de devolución, que depende del
-  historial y no de un campo que alguien puede cambiar.
-- **Una compra en borrador movía el stock.** Si se creara el movimiento
-  al crear el pedido, un pedido olvidado descontaría mercadería que nunca
-  llegó. El movimiento sale al pasar a `recibida`.
+   ─────────────────────────────────────────────────────────────────────
+   LO QUE PASA DESPUÉS
+   ─────────────────────────────────────────────────────────────────────
 
----
+   Pendiente de rotar, y sin relación con el despliegue:
 
-## 13. ⚠️ Los errores de tipos tienen que parar el despliegue
-
-```ts
-typescript: { ignoreBuildErrors: false }
-```
-
-`next.config.ts` lo pone a `false` por defecto para que la compilación
-no tarde un minuto y medio cada vez que tocas un fichero. El problema es
-que entonces un error de tipos **no impide desplegar**: la app se
-levanta y el error aparece en producción.
-
-En este servicio salió así: un `.lte(undefined)` que no filtraba nada
-parecía un filtro roto y no daba error; y un
-`inv_productos.nombre` que era `undefined` en pantalla porque PostgREST
-devolvió el JOIN como array en vez de objeto.
-
-Un minuto de typecheck es un coste conocido. Un fallo de tipos en
-producción es un cliente que no puede entrar.
-
----
-
-## 14. ⚠️ `useState` NO es "correr esto al montar"
-
-En `src/app/entrar/page.tsx` la primera versión hacía:
-
-```tsx
-useState(() => { /* canjea el ticket */ });
-```
-
-`useState` evalúa su inicializador **también en el servidor**, y ahí
-`window` no existe. El build falla con
-`ReferenceError: window is not defined`, que no señala que el problema es
-un `useState` usado como `useEffect`.
-
-Para correr una vez al montar es `useEffect(() => { ... }, [])`. Solo
-corre en el navegador.
-
----
-
-## 15. La plantilla trae ficheros que Next no lee
-
-`src/lib/acceso/proxy.ts` en la plantilla era código muerto: Next carga
-el middleware desde `src/proxy.ts`. Peor: `scripts/conexiones.mjs` lo
-buscaba **solo ahí**, así que si faltaba reventaba con un ENOENT y no
-llegaba a avisar de nada. El validador que debía avisar de un problema se
-caía él mismo por el problema.
-
-Lo mismo con `src/lib/panel.ts`, `tsconfig.json`, `next.config.ts` y
-`src/app/layout.tsx`: la plantilla no los traía, y sin ellos no compila.
-
----
-
-## El orden, para no perder el día
-
-1. `npm install`
-2. `npm run migrate` (con el `DATABASE_URL` del panel)
-3. `npm run test:base` — **antes de desplegar**. Comprueba triggers y RLS
-4. Poner las variables, con `is_preview = false`
-5. Comprobar con `docker exec <contenedor> env`
-6. `npm run build` — los errores de tipos paran aquí, no en producción
-7. Desplegar
-8. Registrar el módulo en el panel: `modules.url` y la fila para que salga en el portal
-9. **Abrir el enlace en un navegador de verdad.** Es el paso que detecta el punto 10 y no lo sustituye ninguna prueba
-
----
-
-## Comprobar que la conexión está bien
-
-Es lo que hay que mirar cuando algo va mal, en este orden:
-
-| Síntoma | Dónde mirar |
-|---|---|
-| `[db] falta SUPABASE_URL` | Punto 2. Las variables no llegan al contenedor |
-| 401 "ese enlace no vale" | Punto 4. Los secretos no coinciden |
-| El canje va bien y luego no hay sesión | Punto 5. Falta `secure` |
-| Va lento y el log está lleno de lo mismo | Punto 6 |
-| El panel da 503 al entrar | El panel, no este servicio. Mirar su log |
-| 401 solo en el navegador, nunca en los tests | Punto 10. Es el fragmento |
-| **Se ven datos de otro cliente y nada falla** | Punto 11. RLS apagado con políticas escritas |
-| **La venta se guarda pero el stock no baja** | Punto 12. Un trigger que no dispara no da error |
-| El build pasa y en producción no se ve un nombre | Punto 13. El typecheck estaba desactivado |
-| El build falla con `window is not defined` | Punto 14. `useState` usado como `useEffect` |
-| Se ven páginas sin sesión, o el validador peta con ENOENT | Punto 15. Ficheros donde Next no los lee |
+     · `EVOLUTION_API_KEY`, que además tiene un valor débil y adivinable.
+     · Los tokens de Supabase.
+     · La clave SSH que quedó expuesta.
