@@ -1,0 +1,20 @@
+﻿
+ÔòÉÔòÉÔòÉ El camino entero, en local ÔòÉÔòÉÔòÉ
+
+  Ô£ô se firma un ticket  ÔåÆ 1316 caracteres
+  Ô£ù el canje responde 200  ÔåÆ HTTP 401
+  Ô£ù y dice que funcion├│  ÔåÆ {"ok":false,"error":"Ese enlace no vale o ha caducado. Vuelve a entrar desde el panel.","c
+  Ô£ù pone cookie  ÔåÆ ...
+  Ô£ô y es host-only, sin Domain  ÔåÆ sin Domain
+  Ô£ô con secure en local no  ÔåÆ http local
+  Ô£ù /api/resumen responde 200  ÔåÆ HTTP 401
+  Ô£ù y trae el d├¡a de hoy  ÔåÆ nada
+  Ô£ù /api/productos responde 200  ÔåÆ HTTP 401
+  Ô£ù y devuelve una lista  ÔåÆ 0 productos
+  Ô£ô sin cookie responde 401  ÔåÆ HTTP 401
+  Ô£ô un ticket manipulado se rechaza  ÔåÆ HTTP 401
+  Ô£ô un ticket vac├¡o se rechaza  ÔåÆ HTTP 401
+
+ÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉÔòÉ
+Ô£ù 7 de 13 fallan.
+

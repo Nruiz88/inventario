@@ -270,13 +270,69 @@
    caro del bot, y el 10 es el que detecta el problema del 2.
 
    ─────────────────────────────────────────────────────────────────────
-   CUANDO ALGO VA MAL
+   ─────────────────────────────────────────────────────────────────────
+13. ⭐ BORRAR `.next` CON EL SERVIDOR CORRIENDO PIERDE LAS VARIABLES
+─────────────────────────────────────────────────────────────────────
+
+Este no pasa en producción. Pasa en local, y es el que más costó
+diagnosticar porque **el síntoma no dice nada de variables de entorno**.
+
+Con `next dev` corriendo en otra terminal, un `npm run build` o un
+borrado manual de `.next` elimina el directorio que el servidor tiene
+abierto. Next lo ve, avisa
+
+    The directory at ".next\dev" was deleted.
+    Deleting this directory while Next.js is running can lead to
+    undefined behavior. Restarting the server to recover...
+
+y se reinicia. **Ese reinicio pierde el `.env.local`.**
+
+Lo que se ve después, en este orden:
+
+    [db] falta SUPABASE_URL o SUPABASE_SECRET_KEY — no se puede leer ni escribir
+    [entrar] ticket rechazado: no-verifica
+    POST /api/entrar 401
+
+Y lo que se piensa: que el `SERVICE_SECRET` del panel y el de aquí no
+coinciden. Es la conclusión más razonable y en producción suele ser la
+correcta, así que uno compara longitudes de secretos idénticos, firma
+tickets a mano, y acaba suspectando del base64.
+
+La causa real: `verificar()` devuelve `null` en cuanto falta el secreto,
+porque su primera línea es
+
+    if (!secret) return null;
+
+Es decir, **"no hay secreto" y "la firma no cuadra" devuelven
+exactamente lo mismo**: 401 con "ese enlace no vale". Y el mensaje al
+usuario es el mismo en los dos casos, a propósito, para no decirle a
+alguien que está probando firmas cuál de los dos es.
+
+Cómo distinguirlo sin adivinar: el log. `[db] falta SUPABASE_URL` es la
+línea que lo dice, y sale al arrancar. Si está, el problema son las
+variables, no el secreto.
+
+Dos formas de no caer en esto:
+
+  · No borrar `.next` mientras el servidor corre. Para un build limpio,
+    parar el servidor primero.
+
+  · `npm run conexiones` avisa de variables que faltan. Correrlo tras un
+    reinicio raro es más rápido que comparar firmas.
+
+En el contenedor **no puede pasar**: allí `.next` no se borra en
+caliente y las variables vienen del entorno de Coolify, no de un
+fichero.
+
+─────────────────────────────────────────────────────────────────────
+CUANDO ALGO VA MAL
+─────────────────────────────────────────────────────────────────────
    ─────────────────────────────────────────────────────────────────────
 
    | Síntoma | Dónde mirar |
    |---|---|
    | `[db] falta SUPABASE_URL` | Punto 2. Las variables no llegan |
-   | 401 "ese enlace no vale" | `SERVICE_SECRET` no coincide |
+   | 401 "ese enlace no vale" | `SERVICE_SECRET` no coincide, **o faltan las variables**. Punto 13 |
    | El canje va bien y luego no hay sesión | Punto 10. Falta `secure` |
    | Va lento, el log lleno de lo mismo | Punto 9 |
    | Los enlaces del panel van al sitio viejo | Punto 3. Hay que Rebuild |
