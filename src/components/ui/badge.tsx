@@ -84,6 +84,14 @@ export function Pastilla({
    quien lo usa, porque el de cada estado tiene que ser el mismo en las
    siete pantallas: si uno escribe "bajo" y otro "por debajo", el dueño
    tarda un segundo más en cada uno y no sabe si son lo mismo. */
+export function ayudaEstado({ children, error }: { children: React.ReactNode; error?: string }) {
+  return (
+    <p className={cn("mt-1.5 text-xs", error ? "text-mal" : "text-apagado")}>
+      {children}
+    </p>
+  );
+}
+
 export const textoStock = (stock: number, minimo: number) => {
   if (stock <= 0) return { texto: "agotado", tono: "stockAgotado" as const };
   if (minimo > 0 && stock <= minimo) return { texto: "bajo", tono: "stockBajo" as const };

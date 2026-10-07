@@ -19,13 +19,14 @@ import { cn } from "@/lib/utils";
    fondo es el de la caja. Si alguna pantalla necesita una cabecera que
    se distinga, se marca con `tono`, no con un fondo por defecto que
    aplica a todas.
-   ========================================================= */
-
-export function Card({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
+   ========================================================= */export function Card({
+  className,
+  ...props
+}: React.HTMLAttributes<HTMLDivElement>) {
   return (
     <div
       className={cn(
-        "rounded-lg border border-borde bg-panel text-texto",
+        "rounded-lg border border-borde bg-panel text-texto overflow-hidden",
         className
       )}
       {...props}
@@ -33,7 +34,10 @@ export function Card({ className, ...props }: React.HTMLAttributes<HTMLDivElemen
   );
 }
 
-export function CardHeader({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
+export function CardHeader({
+  className,
+  ...props
+}: React.HTMLAttributes<HTMLDivElement>) {
   return (
     /* `flex-wrap` en la cabecera y no solo en la acción.
 

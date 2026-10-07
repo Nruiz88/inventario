@@ -310,6 +310,33 @@
   :focus:not(:focus-visible) {
     outline: none;
   }
+
+  a.logo-inventario,
+  .logo-inventario {
+    text-decoration: none;
+    font-weight: 700;
+    color: var(--color-texto);
+    transition: color 120ms ease, background-color 120ms ease;
+  }
+  a.logo-inventario:hover {
+    background-color: var(--color-panel-2);
+    color: var(--color-claro);
+  }
+
+  .barra-secciones a,
+  .barra-secciones button {
+    touch-action: pan-y;
+  }
+
+  .enlace-panel {
+    text-decoration: none;
+    color: var(--color-apagado);
+    transition: color 120ms ease, background-color 120ms ease;
+  }
+  .enlace-panel:hover {
+    background-color: var(--color-panel-2);
+    color: var(--color-texto);
+  }
 }
 
 /* =========================================================

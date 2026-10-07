@@ -32,10 +32,17 @@ import "./globals.css";
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
-    <html lang="es">
-      <body>
+    <html lang="es">      <body
+        style={{
+          margin: 0,
+          minHeight: "100dvh",
+          display: "grid",
+          placeItems: "center",
+          width: "100%",
+        }}
+      >
         <Marco>{children}</Marco>
       </body>
-    </html>
+    </html >
   );
 }

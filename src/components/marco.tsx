@@ -7,6 +7,7 @@ import { LogOut, Store } from "lucide-react";
 import { MIS_SERVICIOS } from "@/lib/panel";
 import { ProveedorDatos } from "@/lib/ui/datos";
 import { cn } from "@/lib/utils";
+import { color } from "@/lib/ui/controles";
 
 /* =========================================================
    El marco: navegación y proveedor de datos
@@ -83,13 +84,33 @@ export function Marco({ children }: { children: ReactNode }) {
 
 function Cabecera({ ruta }: { ruta: string }) {
   return (
-    <header className="sticky top-0 z-50 border-b border-borde bg-panel/95 backdrop-blur">
-      <div className="mx-auto flex w-full max-w-[76rem] flex-wrap items-center gap-x-4 gap-y-2 px-4 py-2.5">
+    <header style={{ position: "sticky", top: 0, zIndex: 50, borderBottom: "1px solid " + color.borde, background: color.panel + "ee", backdropFilter: "blur(8px)" }} className="">
+      <div className="mx-auto flex w-full max-w-[76rem]">
         <Link
           href="/"
-          className="flex items-center gap-2 rounded-md px-2 py-2 text-[0.95rem] font-bold text-texto transicion hover:bg-panel-2 hover:text-claro focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-acento"
+          style={{
+            display: "flex",
+            alignItems: "center",
+            gap: "0.4rem",
+            borderRadius: "0.5rem",
+            padding: "0.45rem 0.5rem",
+            fontSize: "0.95rem",
+            fontWeight: "700",
+            color: color.texto,
+            textDecoration: "none",
+            transition: "background-color 120ms ease, color 120ms ease",
+          }}
+          className=""
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = color.panel2;
+            e.currentTarget.style.color = color.claro;
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = "transparent";
+            e.currentTarget.style.color = color.texto;
+          }}
         >
-          <Store className="size-4 text-acento" aria-hidden />
+          <Store style={{ width: "16px", height: "16px", color: color.acento }} aria-hidden />
           Inventario
         </Link>
 
@@ -100,7 +121,8 @@ function Cabecera({ ruta }: { ruta: string }) {
             dato. */}
         <nav
           aria-label="Secciones"
-          className="order-3 -mx-1 flex w-full gap-1 overflow-x-auto px-1 pb-0.5 md:order-none md:mx-0 md:w-auto md:flex-1 md:overflow-visible md:px-0 md:pb-0"
+          style={{ order: 3, marginLeft: "-1px", display: "flex", width: "100%", gap: "1px", overflowX: "auto", paddingLeft: "1px", paddingRight: "1px", paddingBottom: "0.5rem", WebkitOverflowScrolling: "touch" }}
+          className=""
         >
           {SECCIONES.map((s) => {
             const activo = s.exacto ? ruta === s.href : ruta.startsWith(s.href);
@@ -109,29 +131,68 @@ function Cabecera({ ruta }: { ruta: string }) {
                 key={s.href}
                 href={s.href}
                 aria-current={activo ? "page" : undefined}
-                className={cn(
-                  "shrink-0 rounded-md border px-3 py-2 text-sm transicion",
-                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-acento",
-                  activo
-                    ? "border-borde bg-panel-2 font-bold text-texto"
-                    : "border-transparent font-medium text-apagado hover:bg-panel-2 hover:text-texto"
-                )}
+                style={{
+                  flexShrink: 0,
+                  borderRadius: "0.6rem",
+                  border: "1px solid transparent",
+                  padding: "0.55rem 0.8rem",
+                  fontSize: "0.875rem",
+                  fontWeight: "600",
+                  background: activo ? color.panel2 : "transparent",
+                  color: activo ? color.texto : color.apagado,
+                  transition: "background-color 120ms ease, color 120ms ease, border-color 120ms ease",
+                  textDecoration: "none",
+                }}
+                className=""
+                onMouseEnter={(e) => {
+                  if (!activo) {
+                    e.currentTarget.style.borderColor = color.borde;
+                    e.currentTarget.style.background = color.panel2;
+                    e.currentTarget.style.color = color.texto;
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (!activo) {
+                    e.currentTarget.style.borderColor = "transparent";
+                    e.currentTarget.style.background = "transparent";
+                    e.currentTarget.style.color = color.apagado;
+                  }
+                }}
               >
-                {s.texto}
-              </Link>
+                {s.texto}                </Link>
             );
           })}
         </nav>
 
         <a
           href={MIS_SERVICIOS}
-          className="ml-auto flex items-center gap-1.5 rounded-md px-2.5 py-2 text-sm text-apagado transicion hover:bg-panel-2 hover:text-texto focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-acento"
+          style={{
+            marginLeft: "auto",
+            display: "flex",
+            alignItems: "center",
+            gap: "0.375rem",
+            borderRadius: "0.6rem",
+            padding: "0.45rem 0.65rem",
+            fontSize: "0.8rem",
+            color: color.apagado,
+            textDecoration: "none",
+            transition: "background-color 120ms ease, color 120ms ease",
+          }}
+          className=""
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = color.panel2;
+            e.currentTarget.style.color = color.texto;
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = "transparent";
+            e.currentTarget.style.color = color.apagado;
+          }}
         >
           {/* Con icono y con texto, y no solo con texto. "Mi panel" sin
               contexto es una de esas palabras que en una barra con seis
               pestañas no se sabe si es un enlace o el nombre de la
               sección de al lado. */}
-          <LogOut className="size-3.5" aria-hidden />
+          <LogOut style={{ width: "14px", height: "14px" }} aria-hidden />
           Mi panel
         </a>
       </div>

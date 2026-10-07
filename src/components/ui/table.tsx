@@ -150,3 +150,4 @@ export function Esqueleto({ className, ...props }: React.HTMLAttributes<HTMLDivE
     />
   );
 }
+

@@ -556,8 +556,7 @@ export function Capa({
   children: React.ReactNode;
   onCerrar: () => void;
   titulo?: string;
-}) {
-  /* ⚠️  LA ESCAPERA DEBE CERRAR ──
+}) {    /* ⚠️  LA ESCAPERA DEBE CERRAR ──
 
      No lo hacía, y aquí se mide: la tecla `Esc` es la que se pulsa sin
      querer con la mano de medio, y es la tecla con la que se cancela
@@ -573,8 +572,10 @@ export function Capa({
 
      Y por eso `titulo`: un diálogo de verdad se anuncia con un nombre,
      y sin él un lector de pantalla dice «diálogo» a secas. */
+  
   const ref = useRef<HTMLDivElement>(null);
   const antes = useRef<Element | null>(null);
+  const claveRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     antes.current = document.activeElement;
@@ -589,7 +590,10 @@ export function Capa({
 
   useEffect(() => {
     function alPulsar(e: KeyboardEvent) {
-      if (e.key === "Escape") onCerrar();
+      if (e.key === "Escape") {
+        onCerrar();
+        claveRef.current?.focus();
+      }
     }
     document.addEventListener("keydown", alPulsar);
     return () => document.removeEventListener("keydown", alPulsar);
@@ -621,6 +625,11 @@ export function Capa({
         style={{ width: "min(44rem, 100%)", margin: "1.5rem 0", cursor: "default" }}
         onClick={(e) => e.stopPropagation()}
       >
+        <div
+          ref={claveRef}
+          tabIndex={-1}
+          style={{ position: "absolute", left: "-9999px", width: "1px", height: "1px" }}
+        />
         {children}
       </div>
     </div>

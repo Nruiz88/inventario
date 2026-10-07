@@ -25,7 +25,7 @@ import { cn } from "@/lib/utils";
    suelta, está `Etiqueta`.
    ========================================================= */
 
-const caja = "w-full rounded-md border border-borde bg-hundido px-3 text-texto transicion";
+const cajaBase = "w-full rounded-md border border-borde bg-hundido text-texto transicion";
 
 export const Campo = React.forwardRef<
   HTMLInputElement,
@@ -70,7 +70,7 @@ export const Campo = React.forwardRef<
           aria-invalid={error ? true : undefined}
           aria-describedby={descrito ? campoId + "-ayuda" : undefined}
           className={cn(
-            caja,
+            cajaBase,
             "px-3 py-2",
             "placeholder:text-apagado/60",
             "focus-visible:border-acento focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-acento",
@@ -118,7 +118,7 @@ export const Area = React.forwardRef<
         rows={rows}
         aria-invalid={error ? true : undefined}
         className={cn(
-          caja,
+          cajaBase,
           "resize-y py-2",
           "placeholder:text-apagado/60",
           "focus-visible:border-acento focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-acento",
@@ -194,3 +194,17 @@ export function Esqueleto({ className, ...props }: React.HTMLAttributes<HTMLDivE
     />
   );
 }
+
+export function ayudaFooter({ children, error }: { children: React.ReactNode; error?: string }) {
+  return (
+    <p
+      className={cn(
+        "mt-1.5 text-xs",
+        error ? "text-mal" : "text-apagado"
+      )}
+    >
+      {children}
+    </p>
+  );
+}
+
