@@ -22,7 +22,8 @@
     "capturar": "node capturar.js",
     "test:efectos": "node db/ver-efectos.js",
     "sonda": "node sonda.js",
-    "test:idioma": "node db/ver-idioma.js"
+    "test:idioma": "node db/ver-idioma.js",
+    "tiempos": "node tiempos.js"
   },
   "dependencies": {
     "@radix-ui/react-dialog": "^1.2.0",

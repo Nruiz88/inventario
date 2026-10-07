@@ -104,13 +104,162 @@ export async function GET() {
   const nombreDe = (p: ProductoAnidado): string =>
     (Array.isArray(p) ? p[0]?.nombre : p?.nombre) || "Sin nombre";
 
-  const { data: variantesRaw, error: eVar } = await db
+  /* ══════════════════════════════════════════════════════════════
+     LAS NUEVE CONSULTAS
+
+     Todas a la vez, y por dos razones que conviene tener separadas.
+
+     LA PRIMERA ES EL HECHO. Antes eran cinco idas y venidas en serie:
+     cuatro de dinero en un `Promise.all`, y luego el stock, el arqueo,
+     lo pendiente y las últimas ventas, cada una esperando a la
+     anterior. Medido: 4.415 ms contra los 750 ms del resto de la API.
+     Que sean cuatro en paralelo y cuatro sueltas es lo que cuesta los
+     tres segundos de sobra.
+
+     LA SEGUNDA ES QUE NO DEPENDEN ENTRE SÍ. Todas se filtran por fechas
+     ya calculadas arriba —`hoyIso`, `desde30`, `rango`—, que son
+     operaciones puras sobre la zona horaria y no tocan la red. Y la del
+     stock sólo se usa para *calcular*: contar cuántas están bajas y
+     sumar precios. Ninguna consulta usa el resultado de otra.
+
+     Lo que se paraleliza es la red. El cálculo va después y no cuesta
+     nada: son cuatro sumas y un bucle de treinta días.
+
+     POR QUÉ NO UNA CONSULTA ÚNICA: son cinco tablas distintas. Un
+     `UNION ALL` en PostgREST no existe, y la función de Postgres que
+     lo arreglaría hay que mantenerla, con sus permisos y sus tipos.
+     A cambio se ahorran unos segundos en una pantalla. La cuenta sale
+     mal.
+
+     ── EL ORDEN DE ESTAS LÍNEAS ──
+
+     Declarar una promesa no la ejecuta. Aquí se declaran las nueve,
+     abajo está el `await`, y más abajo todavía los cálculos. Si algo
+     de abajo se usa antes del `await`, TypeScript lo dice —que es lo
+     que pasó al hacerlo de otra manera— pero si se usa un `|| 0`
+     sobre algo que aún no llegó, TypeScript no dice nada y sale un
+     cero que parece un dato. Por eso el `await` va antes del primer
+     `const todas`.
+     ══════════════════════════════════════════════════════════════ */
+
+  /* ── Cronómetro de cada consulta ──
+
+     Con ocho consultas en paralelo solo se ve la más lenta, y hace
+     falta saber cuál es. Se envuelve cada promesa con `medir`, que anota
+     lo que tardó, y al final se manda todo en un `Server-Timing`.
+
+     Va en la respuesta y no en un `console.log` porque sobrevive a la
+     producción: cuando alguien diga "el resumen va lento", la pregunta
+     ya está contestada en las cabeceras de la petición que se está
+     mirando. Para verlo: pestaña Network, la petición a `/api/resumen`,
+     cabecera `Server-Timing`.
+
+     El nombre de cada marca es el de la variable, y no el de la tabla,
+     porque es el nombre con el que se busca en el código. */
+  const marcas: Record<string, number> = {};
+  const medir = <T,>(nombre: string, p: PromiseLike<T>): Promise<T> => {
+    const t0 = Date.now();
+    return Promise.resolve(p).then((r) => {
+      marcas[nombre] = Date.now() - t0;
+      return r;
+    });
+  };
+
+  /* ── 1. El stock, con el JOIN al producto ── */
+  const pStock = db
     .from("inv_variantes")
     .select(
       "id, stock, stock_minimo, nombre_variante, precio_venta_cents, precio_costo_cents, inv_productos(nombre)"
     )
     .eq("activo", true)
     .limit(2000);
+
+  /* ── 2. Las cuatro de dinero ──
+     El cálculo del stock va más abajo, después del `await`: aquí solo
+     se declaran promesas. */
+  const pVentasHoy = db
+    .from("inv_ventas")
+    .select("total_cents")
+    .eq("anulada", false)
+    .gte("fecha", rango.desde)
+    .lt("fecha", rango.hasta);
+
+  /* ── 4. Ventas de los últimos treinta días, con su fecha ──
+     La fecha se pide porque de ahí sale la serie de barras. */
+  const pTreinta = db
+    .from("inv_ventas")
+    .select("fecha, total_cents")
+    .eq("anulada", false)
+    .gte("fecha", desde30);
+
+  /* ── 5. El movimiento del cajón ── */
+  const pCaja = db
+    .from("inv_caja")
+    .select("tipo, monto_cents")
+    .gte("fecha", rango.desde)
+    .lt("fecha", rango.hasta)
+    .limit(500);
+
+  /* ⚠️  ESTA TRAE HASTA 1000 FILAS PARA SUMAR DOS NÚMEROS
+   -----------------------------------------------------------
+   `deuda` es `suma(debe) - suma(haber)`. Eso lo resuelve Postgres en una
+   fila y aquí se traen mil filas de apuntes para hacerlo en JavaScript.
+
+   Se queda así a propósito por ahora, y es la consulta más sospechosa
+   del resumen: un `.limit(1000)` sin orden es además un número
+   arbitrario, y un recorte no se parece en nada a un error, así que con
+   diez mil apuntes la deuda sale mal sin ningún aviso.
+
+   Lo que hay que hacer es una vista o una función que devuelva las dos
+   sumas. Eso es una migración, no un cambio de aquí, y queda anotado
+   para que no se pierda de vista. */
+  const pCuentas = db.from("inv_cuentas").select("tipo, monto_cents").limit(1000);
+
+  /* ── 6. El arqueo de hoy ── */
+  const pArqueo = db
+    .from("inv_arqueos")
+    .select("saldo_inicial_cents")
+    .eq("fecha", hoyIso)
+    .maybeSingle();
+
+  /* ── 7. Lo que está vendido y no facturado ── */
+  const pSinFacturar = db
+    .from("inv_ventas")
+    .select("id, total_cents, fecha")
+    .eq("anulada", false)
+    .eq("facturada", false)
+    .gte("fecha", desde30)
+    .order("fecha", { ascending: false })
+    .limit(50);
+
+  /* ── 8. Las últimas ventas, con el nombre del cliente ── */
+  const pUltimas = db
+    .from("inv_ventas")
+    .select("id, fecha, total_cents, metodo_pago, facturada, cliente:inv_clientes(nombre)")
+    .eq("anulada", false)
+    .order("fecha", { ascending: false })
+    .limit(10);
+
+  /* ══ AQUÍ SALE ALGO DE LA RED ══ */
+  const [
+    { data: variantesRaw, error: eVar },
+    { data: ventasHoy },
+    { data: treinta },
+    { data: caja },
+    { data: cuentas },
+    { data: arqueoHoy },
+    { data: sinFacturar },
+    { data: ultimas },
+  ] = await Promise.all([
+    medir("stock", pStock),
+    medir("ventasHoy", pVentasHoy),
+    medir("treinta", pTreinta),
+    medir("caja", pCaja),
+    medir("cuentas", pCuentas),
+    medir("arqueo", pArqueo),
+    medir("sinFacturar", pSinFacturar),
+    medir("ultimas", pUltimas),
+  ]);
 
   if (eVar) {
     console.error("[resumen] no se pudo leer el stock:", eVar.message);
@@ -119,6 +268,13 @@ export async function GET() {
       { status: 500 }
     );
   }
+
+  /* ══ Y AQUÍ EMPIEZA A CALCULARSE ══
+     Todo lo que viene de aquí para abajo usa datos que ya han llegado.
+
+     Si algo de aquí se usara antes del `await`, TypeScript lo diría.
+     Lo que TypeScript NO diría es un `|| 0` sobre algo que todavía no
+     llegó: saldría un cero, y un cero parece un dato. */
 
   const todas = (variantesRaw || []) as unknown as VarianteResumen[];
   const bajo = todas.filter((v) => v.stock <= (v.stock_minimo || 0));
@@ -131,10 +287,6 @@ export async function GET() {
      no se sabe si el negocio está sano o si lleva meses acumulando
      mercadería que no se mueve, que es como se muere un kiosco sin que
      se entere.
-
-     Se calcula aquí y no en el servidor de la pantalla porque la
-     consulta de variantes ya está hecha: pedir los dos precios no
-     cuesta una vuelta, y pedirlos en otro sitio sí.
 
      `margenStock` es lo mismo visto como rentabilidad: la diferencia
      entre lo que costó y lo que se vendería, sobre lo que se vendería.
@@ -156,41 +308,6 @@ export async function GET() {
   );
   const sinCoste = todas.filter((v) => (v.stock || 0) > 0 && !v.precio_costo_cents).length;
 
-  /* ── Cuánto falta para llegar al mínimo ──
-
-     En la lista de stock bajo se veía "3" y al lado "mín. 4", y había
-     que restar mentalmente para saber que faltaba uno. La pregunta de
-     un comprador es "cuántas unidades me faltan", no "cuál es el
-     mínimo", así que se calcula la diferencia y se enseña la
-     diferencia.
-
-     Y en unidades, no en dinero: es lo que va escrito en el pedido. */
-
-  /*  Dinero  */
-  const [ventasHoy, treinta, caja, cuentas] = await Promise.all([
-    db
-      .from("inv_ventas")
-      .select("total_cents")
-      .eq("anulada", false)
-      .gte("fecha", rango.desde)
-      .lt("fecha", rango.hasta),
-
-    db
-      .from("inv_ventas")
-      .select("fecha, total_cents")
-      .eq("anulada", false)
-      .gte("fecha", desde30),
-
-    db
-      .from("inv_caja")
-      .select("tipo, monto_cents")
-      .gte("fecha", rango.desde)
-      .lt("fecha", rango.hasta)
-      .limit(500),
-
-    db.from("inv_cuentas").select("tipo, monto_cents").limit(1000),
-  ]);
-
   /* Suma una columna, con filtro opcional por `tipo`.
 
      El NOMBRE DE LA COLUMNA es un argumento y no algo fijo: `inv_caja` tiene
@@ -207,8 +324,8 @@ export async function GET() {
       .filter((f) => (tipo ? f.tipo === tipo : true))
       .reduce((s, f) => s + (f[columna] || 0), 0);
 
-  const totalHoy = sumar(ventasHoy.data as any[], "total_cents");
-  const total30 = sumar(treinta.data as any[], "total_cents");
+  const totalHoy = sumar(ventasHoy as any[], "total_cents");
+  const total30 = sumar(treinta as any[], "total_cents");
 
   /* ── La serie de treinta días ──
 
@@ -223,7 +340,7 @@ export async function GET() {
   const porDia: { fecha: string; total: number }[] = [];
   {
     const porFecha = new Map<string, number>();
-    for (const v of (treinta.data as any[]) || []) {
+    for (const v of (treinta as any[]) || []) {
       if (!v?.fecha) continue;
       const dia = String(v.fecha).slice(0, 10);
       porFecha.set(dia, (porFecha.get(dia) || 0) + (v.total_cents || 0));
@@ -239,8 +356,8 @@ export async function GET() {
   }
 
   const cajaDelDia =
-    sumar(caja.data as any[], "monto_cents", "ingreso") -
-    sumar(caja.data as any[], "monto_cents", "egreso");
+    sumar(caja as any[], "monto_cents", "ingreso") -
+    sumar(caja as any[], "monto_cents", "egreso");
 
   /* ⚠️  LO QUE HAY EN EL CAJÓN, NO LO QUE SE MOVIÓ HOY
    * ---------------------------------------------------
@@ -259,41 +376,28 @@ export async function GET() {
    * que la pantalla diga "abrí el arqueo" en vez de inventar un número. */
   let saldoCaja: number | null = null;
 
-  const { data: arqueoHoy } = await db
-    .from("inv_arqueos")
-    .select("saldo_inicial_cents")
-    .eq("fecha", hoyIso)
-    .maybeSingle();
 
   if (arqueoHoy) {
     saldoCaja = (arqueoHoy.saldo_inicial_cents || 0) + cajaDelDia;
   }
 
   const deuda =
-    sumar(cuentas.data as any[], "monto_cents", "debe") -
-    sumar(cuentas.data as any[], "monto_cents", "haber");
+    sumar(cuentas as any[], "monto_cents", "debe") -
+    sumar(cuentas as any[], "monto_cents", "haber");
 
   /*  Lo que falta por facturar  */
-  const { data: sinFacturar } = await db
-    .from("inv_ventas")
-    .select("id, total_cents, fecha")
-    .eq("anulada", false)
-    .eq("facturada", false)
-    .gte("fecha", desde30)
-    .order("fecha", { ascending: false })
-    .limit(50);
 
   /*  Las últimas ventas  */
-  const { data: ultimas } = await db
-    .from("inv_ventas")
-    .select("id, fecha, total_cents, metodo_pago, facturada, cliente:inv_clientes(nombre)")
-    .eq("anulada", false)
-    .order("fecha", { ascending: false })
-    .limit(10);
 
-  return NextResponse.json({
-    ok: true,
-    data: {
+  const serverTiming =
+    Object.entries(marcas)
+      .map(([nombre, ms]) => `${nombre};dur=${ms}`)
+      .join(", ");
+
+  return NextResponse.json(
+    {
+      ok: true,
+      data: {
       hoy: hoyIso,
 
       stock: {
@@ -337,7 +441,7 @@ export async function GET() {
 
       hoy_: {
         facturado: totalHoy,
-        ventas: (ventasHoy.data || []).length,
+        ventas: (ventasHoy || []).length,
         caja: cajaDelDia,
         saldoCaja,
       },
@@ -367,6 +471,8 @@ export async function GET() {
         facturada: v.facturada,
         cliente: (v.cliente && v.cliente.nombre) || null,
       })),
+      },
     },
-  });
+    { headers: { "Server-Timing": serverTiming } },
+  );
 }
