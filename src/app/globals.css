@@ -1,0 +1,254 @@
+/* =========================================================
+   La hoja del inventario
+   ---------------------------------------------------------
+   Tailwind v4 es CSS primero: no hay `tailwind.config.js` a menos que
+   haga falta uno, y lo que se configura son variables de `@theme`.
+
+   ── POR QUÉ ESTOS COLORES Y NO OTROS ──
+
+   Son los mismos seis del sistema que había antes, escritos a mano en
+   cada componente, con dos añadidos que el inventario necesita y el
+   resto de pantallas no:
+
+   `--stock-bajo` y `--stock-agotado` no son un error ni un aviso. Un
+   producto por debajo del mínimo no está roto: es una señal de compra.
+   Si se pintan con el mismo rojo que un fallo de red, el dueño learned
+   a ignorar el rojo, y entonces un fallo de red tampoco lo ve. Es el
+   motivo por el que en una tienda de ropa el "quedan 2" no lleva la
+   misma alerta que "no se pudo cobrar".
+
+   ── POR QUÉ HAY UN `--objetivo` ──
+
+   El mínimo táctil de este programa no es una costumbre: se usa con el
+   dedo, en un mostrador, con una mano ocupada. 32 px es el umbral por
+   debajo del cual se empiezan a fallar las pulsaciones, y tener el
+   número en un token hace que se pueda comprobar en vez de recordar.
+
+   ── LOS NÚMEROS ──
+
+   Todo lo que se cuenta va en `tabular-nums`. Con cifras de ancho
+   variable, el 1 se ve más pequeño que el 8, y comparar "11" contra
+   "8" a ojo es un error esperando en la columna de stock.
+   ========================================================= */
+
+@import "tailwindcss";
+
+/* =========================================================
+   Los nombres que espera shadcn
+   ---------------------------------------------------------
+   Los componentes de shadcn vienen pidiendo cosas como `bg-background`,
+   `text-muted-foreground` o `border-border`, y no traen sus propias
+   variables: el que las define es el proyecto.
+
+   Aquí se apuntan a las de arriba. Que sean las mismas es el motivo de
+   que se escriban una vez y no dos: si el azul de acento del panel y el
+   azul de los botones fueran variables distintas, habría dos azules en
+   la misma pantalla sin que nadie lo notara hasta que se notasen.
+
+   ── POR QUÉ `ACENTO` Y `ACCENT` NO SE CONFUNDEN ──
+
+   shadcn llama `accent` al color de superficie que se ve al pasar el
+   ratón por encima de un botón. Este proyecto llama `acento` al azul
+   de la marca. Son cosas distintas y por eso uno está en inglés y otro
+   en castellano: si los dos se llamaran `accent`, habría que elegir
+   cuál de los dos significa, y ese "cuál" se recordaría mal.
+   ========================================================= */
+
+@theme inline {
+  --color-background: var(--color-fondo);
+  --color-foreground: var(--color-texto);
+
+  --color-card: var(--color-panel);
+  --color-card-foreground: var(--color-texto);
+
+  --color-popover: var(--color-panel-2);
+  --color-popover-foreground: var(--color-texto);
+
+  --color-primary: var(--color-acento);
+  --color-primary-foreground: var(--color-acento-oscuro);
+
+  /* El `accent` de shadcn NO es nuestro azul: es la superficie de
+     hover, y tiene que ser un gris. */
+  --color-accent: var(--color-panel-2);
+  --color-accent-foreground: var(--color-texto);
+
+  --color-secondary: var(--color-panel-2);
+  --color-secondary-foreground: var(--color-claro);
+
+  --color-muted: var(--color-panel-2);
+  --color-muted-foreground: var(--color-apagado);
+
+  --color-destructive: var(--color-mal);
+  --color-destructive-foreground: var(--color-texto);
+
+  --color-success: var(--color-ok);
+  --color-warning: var(--color-aviso);
+
+  --color-border: var(--color-borde);
+  --color-input: var(--color-borde);
+  --color-ring: var(--color-acento);
+
+  --radius: var(--radius-md);
+}
+
+/* =========================================================
+   Los objetivos táctiles, por encima de los componentes
+   ---------------------------------------------------------
+   shadcn pone los botones en 36 px de alto (`h-9`) y los campos en 36.
+   Aquí hace falta más: este programa se usa con el dedo, en un
+   mostrador, con una mano ocupada.
+
+   La regla se pone aquí y no en cada componente porque basta con que
+   una pantalla se olvide para que el conjunto parezca roto —y porque
+   un botón con `h-7` escrito a mano gana por especificidad a cualquier
+   cosa que se ponga en una capa base. Por eso va con `!important`, que
+   es feo: la alternativa sería que cada botón del proyecto recordara
+   que tiene que medir 40 píxeles. */
+@layer base {
+  button,
+  [role="button"],
+  input:not([type="checkbox"]):not([type="radio"]),
+  select {
+    min-height: var(--spacing-objetivo);
+  }
+
+  /* Las excepciones que sí son pequeñas: un interruptor, o un botón
+     de icono dentro de una fila de tabla. Se marcan desde el propio
+     componente con `data-compacto`, para no tener que pelear con
+     `!important` en cada uno. */
+  button[data-compacto],
+  [data-compacto] {
+    min-height: 2rem;
+  }
+}
+
+@theme {
+  /* ── Superficies ──
+     Cuatro escalones y ni uno más. El quinto es el que hace que una
+     aplicación se vuelva gris: cada componente elige "un gris un poco
+     más claro" y al final no hay forma de saber cuál es cuál. */
+  --color-fondo: #0b0f14;
+  --color-panel: #111820;
+  --color-panel-2: #161f2a;
+  --color-hundido: #0d141c;
+
+  --color-borde: #243040;
+  --color-borde-fuerte: #35455a;
+
+  /* ── Texto ──
+     El apagado está por encima de 4.5:1 sobre el panel. Con la
+     pantalla sucia y a contraluz, un gris más apagado no se lee. */
+  --color-texto: #e6edf3;
+  --color-claro: #c9d5e2;
+  --color-apagado: #8b9bb0;
+
+  /* ── Semánticos ── */
+  --color-acento: #4da3ff;
+  --color-acento-oscuro: #06121f;
+  --color-ok: #3fb950;
+  --color-mal: #f0616d;
+  --color-aviso: #d29922;
+
+  /* ── Inventario ──
+     Los dos estados de stock, aparte a propósito. Ver arriba. */
+  --color-stock-bajo: #d29922;
+  --color-stock-agotado: #f0616d;
+
+  /* ── Espaciado ──
+     Escala de 4 px. Cualquier valor que no salga de aquí es un número
+     que alguien inventó un día y nadie revisó. */
+  --spacing-p1: 0.25rem;
+  --spacing-p2: 0.5rem;
+  --spacing-p3: 0.75rem;
+  --spacing-p4: 1rem;
+  --spacing-p5: 1.25rem;
+  --spacing-p6: 1.5rem;
+  --spacing-p8: 2rem;
+
+  /* ── Radios ── */
+  --radius-sm: 0.4rem;
+  --radius-md: 0.6rem;
+  --radius-lg: 0.9rem;
+
+  /* ── El objetivo táctil ── */
+  --spacing-objetivo: 2.25rem;
+
+  --font-sans: system-ui, -apple-system, "Segoe UI", sans-serif;
+
+  /* Cifras que no bailan. Se aplica a todo lo que se cuenta. */
+  --font-variant-numeric: tabular-nums;
+}
+
+/* =========================================================
+   Lo que no puede dejar de estar en toda la aplicación
+   ---------------------------------------------------------
+   No son utilidades: son reglas del programa. Van aquí y no en cada
+   componente porque basta con que una pantalla se olvide de una para
+   que el conjunto parezca roto.
+   ========================================================= */
+
+@layer base {
+  /* El fondo del papel sale de la herramienta del sistema, no de una
+     lista inventada aquí. Con `--color-*` de Tailwind, este atajo es
+     lo que convierte los tokens en utilidades `bg-panel`. */
+  html {
+    background-color: var(--color-fondo);
+    color-scheme: dark;
+  }
+
+  body {
+    background-color: var(--color-fondo);
+    color: var(--color-texto);
+    font-family: var(--font-sans);
+    /* Un kiosco se usa en un móvil, muchas veces con una mano ocupada:
+       sin esto, tocar un `input` en iOS hace zoom y la pantalla se
+       descentra justo cuando estás apurado. */
+    -webkit-text-size-adjust: 100%;
+    overscroll-behavior-y: none;
+  }
+
+  /* Todo lo que se cuenta, con cifras de ancho fijo. Sin esto, la
+     columna de stock se baila cada vez que entra un 1. */
+  table,
+  .cifra,
+  [data-cifra] {
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* El foco tiene que verse. Se quita el contorno por defecto solo
+     donde se repone con algo mejor, y `outline: none` a secas es la
+     razón más común de que una aplicación sea inusable con teclado. */
+  :focus-visible {
+    outline: 2px solid var(--color-acento);
+    outline-offset: 2px;
+  }
+
+  /* En el mostrador la pantalla está sucia y se limpia con el codo. Sin
+     esto, mover el ratón va dejando un rastro de foco marcado en cada
+     control por el que pasa. */
+  :focus:not(:focus-visible) {
+    outline: none;
+  }
+}
+
+/* =========================================================
+   El movimiento
+   ---------------------------------------------------------
+   Corto y sin desplazamiento. En un mostrador el dedo llega tarde y
+   cualquier transición larga hace que la pantalla parezca lenta cuando
+   lo único que ha pasado es que un botón ha cambiado de color.
+
+   Y con `prefers-reduced-motion` no hay nada: no es que se respete por
+   cortesía, es que el movimiento en esta aplicación es puro adorno y
+   el tiempo que se ahorra está mejor en la respuesta del servidor. */
+@layer utilities {
+  .transicion {
+    transition: background-color 120ms ease, border-color 120ms ease, color 120ms ease;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .transicion {
+      transition: none;
+    }
+  }
+}

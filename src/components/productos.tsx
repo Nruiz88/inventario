@@ -571,7 +571,7 @@ function MoverStock({
             />
           </Fila>
 
-          {/* La预见 del resultado va ANTES de guardar, y avisa cuando no
+          {/* La previsión del resultado va ANTES de guardar, y avisa cuando no
               se puede. Un trigger que lo rechaza deja al dueño con el
               formulario lleno y un error de Postgres arriba. */}
           <div

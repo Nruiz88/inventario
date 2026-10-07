@@ -141,7 +141,7 @@ export function Ventas() {
     if (v.stock <= 0) {
       /* No se añade y se dice por qué. La alternativa es añadirla con
          stock 0 y que el servidor la rechace: el dueño pulse F2 y
-        才发现 que no había, con la caja ya abierta delante de un
+        descubrió que no había, con la caja ya abierta delante de un
          cliente. */
       campo.current?.focus();
       return;

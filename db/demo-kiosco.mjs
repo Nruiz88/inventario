@@ -5,7 +5,7 @@
    si el diseño sirve. Una lista de ceros dice muy poco: el problema de
    una tabla con veinte columnas se ve con veinte filas.
 
-   Lo que mete es un kiosco que se parece a uno real:gatsby，普通 y no
+   Lo que mete es un kiosco que se parece a uno real:gatsbygatsby, común y no y no
    un catálogo de mentira. Productos con nombres de verdad, un proveedor,
    ventas de hoy y de anteayer, fiados, una compra a medio recibir y un
    arqueo abierto.

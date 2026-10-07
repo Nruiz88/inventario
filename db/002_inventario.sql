@@ -49,7 +49,7 @@
 -- -----------------------------
 -- `precio_cents integer`. Un precio en coma flotante acumula error de
 -- redondeo, y al multiplicar por 500 unidades deja de cuadrar. Con
--- enteros no hay误差.
+-- enteros no hayenteros no hay desvío.
 --
 -- La última palabra la lleva el nombre de la columna: si no dice `_cents`
 -- en todas partes, alguien va a guardar pesos en una.
@@ -58,7 +58,7 @@
 -- CUENTAS CORRIENTES: POR QUÉ UN LEDGER Y NO UN SALDO
 -- ----------------------------------------------------
 -- Podría haber un `saldo` en el cliente y ya. No, porque entonces no se
--- puede responder "¿cuándo me 开始ó a deber?", y en un kiosco eso es
+-- puede responder "¿cuándo me me empezó a deberó a deber?", y en un kiosco eso es
 -- exactamente lo que se pregunta: "yo te dejé fiado el mes pasado".
 --
 -- `inv_cuentas` es un libro de debe y haber. El saldo es la suma, y se

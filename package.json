@@ -6,7 +6,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "test": "vitest run",
+    "test": "node db/ver-idioma.js && node db/ver-efectos.js && vitest run",
     "test:watch": "vitest",
     "conexiones": "node scripts/conexiones.mjs",
     "migrate": "node db/migrate.mjs",
@@ -21,21 +21,39 @@
     "test:imagen": "node db/probar-imagen.mjs",
     "capturar": "node capturar.js",
     "test:efectos": "node db/ver-efectos.js",
-    "sonda": "node sonda.js"
+    "sonda": "node sonda.js",
+    "test:idioma": "node db/ver-idioma.js"
   },
   "dependencies": {
+    "@radix-ui/react-dialog": "^1.2.0",
+    "@radix-ui/react-dropdown-menu": "^2.1.25",
+    "@radix-ui/react-label": "^2.1.16",
+    "@radix-ui/react-select": "^2.3.8",
+    "@radix-ui/react-separator": "^1.1.16",
+    "@radix-ui/react-slot": "^1.4.0",
+    "@radix-ui/react-tabs": "^1.1.22",
     "@supabase/supabase-js": "^2.45.0",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "lucide-react": "^1.52.0",
     "next": "^16.3.8",
     "pg": "^8.12.0",
     "react": "^19.3.0",
-    "react-dom": "^19.3.0"
+    "react-dom": "^19.3.0",
+    "tailwind-merge": "^3.7.0"
   },
   "devDependencies": {
+    "@tailwindcss/postcss": "^4.3.3",
     "@types/node": "^22.0.0",
     "@types/pg": "^8.11.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
+    "postcss": "^8.5.29",
+    "tailwindcss": "^4.3.3",
     "typescript": "^5.5.0",
     "vitest": "^2.0.0"
+  },
+  "allowScripts": {
+    "esbuild": true
   }
 }

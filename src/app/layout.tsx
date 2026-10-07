@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import { Marco } from "@/components/marco";
+import "./globals.css";
 
 /* =========================================================
    Layout raíz
@@ -16,24 +17,23 @@ import { Marco } from "@/components/marco";
    En App Router el `<body>` lo pone Next, no el layout. Si se pone
    también, sale un error de hidratación en cada página, que en el
    servidor parece funcionar y en el navegador rompe.
+
+   ── POR QUÉ EL FONDO ESTÁ EN LA HOJA Y NO AQUÍ ──
+
+   Antes llevaba aquí los colores del cuerpo como estilos en línea. Con
+   la hoja, el fondo, el color del texto, el color de la barra de
+   scroll y el `:focus-visible` salen de `globals.css`.
+
+   La razón es una sola, y es que este layout es un componente de
+   servidor: no puede leer el tema ni depender del navegador. Todo lo
+   que dependa de eso va a la hoja, o el día que se añada un tema
+   claro hay que recordar venir aquí.
    ========================================================= */
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="es">
-      <body
-        style={{
-          margin: 0,
-          background: "#0b0f14",
-          color: "#e6edf3",
-          fontFamily: "system-ui, -apple-system, sans-serif",
-          /* Un comercio chico se usa en un móvil, muchas veces con una
-             mano ocupada: sin esto, tocar un `<input>` en iOS hace zoom
-             y la pantalla se descentra justo cuando estás apurado. */
-          WebkitTextSizeAdjust: "100%",
-          overscrollBehaviorY: "none",
-        }}
-      >
+      <body>
         <Marco>{children}</Marco>
       </body>
     </html>
