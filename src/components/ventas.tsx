@@ -4,8 +4,10 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { Casilla } from "@/components/ui/input";
 import { useApi } from "@/lib/ui/datos";
 import { dinero, aNumero, aCentavos, margen } from "@/lib/dinero";
+import { cn } from "@/lib/utils";
+import { Capa } from "@/components/productos-form";
 import {
-  Panel, Boton, Campo, Area, Pastilla, Vacio, color, tipografia, Fila, BotonFila,
+  Panel, Boton, Campo, Area, Pastilla, Vacio, Fila, BotonFila,
 } from "@/lib/ui/controles";
 
 /* =========================================================
@@ -221,10 +223,10 @@ export function Ventas() {
   }
 
   return (
-    <div style={{ display: "grid", gap: "1rem" }}>
+    <div className="grid gap-4">
       {/* ── La caja ── */}
       <Panel titulo="Caja">
-        <div style={{ padding: "1rem", display: "grid", gap: ".85rem" }}>
+        <div className="grid gap-3 p-4">
           <Campo
             etiqueta="Buscar o escanear"
             valor={busqueda}
@@ -237,7 +239,7 @@ export function Ventas() {
               no roba el foco, para que después de tocarlo el escáner
               siga funcionando. Un `<button>` normal lo roba, y la venta
               siguiente se pierde. */}
-          <div style={{ display: "flex", flexWrap: "wrap", gap: ".4rem" }}>
+          <div className="flex flex-wrap gap-1.5">
             {encontrados.map((v) => (
               <button
                 key={v.id}
@@ -250,36 +252,31 @@ export function Ventas() {
                     ? "Sin stock"
                     : `${v.nombre}${v.variante ? " · " + v.variante : ""} — ${dinero(v.precio)}`
                 }
-                style={{
-                  padding: ".5rem .7rem",
-                  borderRadius: ".45rem",
-                  border: `1px solid ${v.bajo ? color.aviso + "66" : color.borde}`,
-                  background: v.stock <= 0 ? "#151a1f" : color.panel2,
-                  color: v.stock <= 0 ? color.apagado : color.texto,
-                  opacity: v.stock <= 0 ? 0.5 : 1,
-                  cursor: v.stock <= 0 ? "not-allowed" : "pointer",
-                  fontSize: ".85rem",
-                  textAlign: "left",
-                  lineHeight: 1.35,
-                  minHeight: "2.6rem",
-                }}
+                className={cn(
+                  "min-h-[2.6rem] rounded-md border px-3 py-2 text-left transicion",
+                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-acento",
+                  v.stock <= 0
+                    ? "cursor-not-allowed border-borde bg-[#151a1f] text-apagado opacity-50"
+                    : "cursor-pointer bg-panel-2 text-texto hover:border-borde-fuerte",
+                  v.bajo && v.stock > 0 && "border-aviso/40"
+                )}
               >
-                <div style={{ fontWeight: 600 }}>
+                <div className="font-semibold">
                   {v.nombre}
-                  {v.variante ? <span style={{ color: color.apagado, fontWeight: 400 }}> · {v.variante}</span> : null}
+                  {v.variante ? <span className="font-normal text-apagado"> · {v.variante}</span> : null}
                 </div>
-                <div style={{ display: "flex", gap: ".5rem", fontSize: ".78rem", marginTop: ".1rem" }}>
-                  <span style={{ color: color.acento, fontVariantNumeric: "tabular-nums" }}>
+                <div className="mt-0.5 flex gap-2 text-xs">
+                  <span data-cifra className="text-acento">
                     {dinero(v.precio)}
                   </span>
-                  <span style={{ color: v.stock === 0 ? color.mal : color.apagado }}>
+                  <span className={v.stock === 0 ? "text-mal" : "text-apagado"}>
                     {v.stock === 0 ? "agotado" : `${v.stock} en stock`}
                   </span>
                 </div>
               </button>
             ))}
             {encontrados.length === 0 && (
-              <span style={{ ...tipografia.chico, color: color.apagado, alignSelf: "center" }}>
+              <span className="self-center text-xs text-apagado">
                 {/* Tres casos distintos, y el mensaje tiene que decir cuál.
                     Con un solo mensaje, un kiosco recién configurado
                     —que no tiene ni un producto— lee "Nada coincide con
@@ -293,7 +290,7 @@ export function Ventas() {
             )}
           </div>
 
-          <div style={{ height: 1, background: color.borde }} />
+          <div className="h-px bg-borde" />
 
           {lineas.length === 0 ? (
             <Vacio>Toque un producto para empezar la venta.</Vacio>
@@ -302,23 +299,16 @@ export function Ventas() {
               {lineas.map((l) => (
                 <div
                   key={l.variante.id}
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "1fr 5.5rem 6rem",
-                    gap: ".6rem",
-                    alignItems: "center",
-                    padding: ".45rem 0",
-                    borderBottom: `1px solid ${color.borde}`,
-                  }}
+                  className="grid grid-cols-[1fr_5.5rem_6rem] items-center gap-x-2.5 border-b border-borde py-2"
                 >
-                  <div style={{ minWidth: 0 }}>
-                    <div style={{ fontSize: ".9rem", fontWeight: 600 }}>
+                  <div className="min-w-0">
+                    <div className="text-sm font-semibold">
                       {l.variante.nombre}
                       {l.variante.variante ? (
-                        <span style={{ color: color.apagado, fontWeight: 400 }}> · {l.variante.variante}</span>
+                        <span className="font-normal text-apagado"> · {l.variante.variante}</span>
                       ) : null}
                     </div>
-                    <div style={{ ...tipografia.chico, color: color.apagado }}>
+                    <div className="text-xs text-apagado">
                       {dinero(l.variante.precio)} c/u
                       {l.variante.costo > 0 && <> · margen {margen(l.variante.precio, l.variante.costo)}%</>}
                     </div>
@@ -330,38 +320,24 @@ export function Ventas() {
                     max={l.variante.stock}
                     value={l.cantidad}
                     onChange={(e) => cambiar(l.variante.id, Math.min(l.variante.stock, Number(e.target.value) || 1))}
-                    style={{
-                      width: "100%",
-                      padding: ".4rem",
-                      borderRadius: ".4rem",
-                      border: `1px solid ${color.borde}`,
-                      background: "#0d141c",
-                      color: color.texto,
-                      fontSize: ".9rem",
-                      textAlign: "center",
-                      fontVariantNumeric: "tabular-nums",
-                    }}
+                    className="w-full rounded-sm border border-borde bg-hundido px-1.5 py-1.5 text-center text-sm text-texto tabular-nums focus-visible:border-acento focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-acento"
                   />
 
-                  <div
-                    style={{
-                      textAlign: "right",
-                      fontVariantNumeric: "tabular-nums",
-                      fontWeight: 600,
-                    }}
-                  >
+                  <div data-cifra className="text-right font-semibold">
                     {dinero(l.variante.precio * l.cantidad)}
                   </div>
                 </div>
               ))}
 
-              <div style={{ display: "flex", justifyContent: "space-between", padding: ".8rem 0 0" }}>
-                <span style={{ ...tipografia.grande, fontWeight: 600 }}>Total</span>
-                <span style={{ ...tipografia.cifra, color: color.acento }}>{dinero(total)}</span>
+              <div className="flex items-baseline justify-between pt-3">
+                <span className="text-[1.05rem] font-semibold">Total</span>
+                <span data-cifra className="text-[1.9rem] leading-tight font-bold text-acento">
+                  {dinero(total)}
+                </span>
               </div>
 
               {gananciaTotal > 0 && (
-                <div style={{ ...tipografia.chico, color: color.apagado, textAlign: "right" }}>
+                <div className="text-right text-xs text-apagado">
                   Ganancia estimada {dinero(gananciaTotal)}
                 </div>
               )}
@@ -369,31 +345,14 @@ export function Ventas() {
           )}
 
           <Fila cols={metodo === "cuenta_corriente" ? 1 : 2}>
-            <label style={{ display: "block" }}>
-              <span
-                style={{
-                  display: "block",
-                  fontSize: ".75rem",
-                  color: color.apagado,
-                  marginBottom: ".25rem",
-                  textTransform: "uppercase",
-                }}
-              >
+            <label className="block">
+              <span className="mb-1.5 block text-[0.7rem] font-bold tracking-[0.08em] text-apagado uppercase">
                 Cómo paga
               </span>
               <select
                 value={metodo}
                 onChange={(e) => setMetodo(e.target.value)}
-                style={{
-                  width: "100%",
-                  padding: ".6rem",
-                  borderRadius: ".6rem",
-                  border: `1px solid ${color.borde}`,
-                  background: "#0d141c",
-                  color: color.texto,
-                  fontSize: ".95rem",
-                  minHeight: "2.6rem",
-                }}
+                className="w-full min-h-[2.6rem] rounded-md border border-borde bg-hundido px-3 text-texto transicion focus-visible:border-acento focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-acento"
               >
                 {METODOS.map((m) => (
                   <option key={m.valor} value={m.valor}>
@@ -404,31 +363,14 @@ export function Ventas() {
             </label>
 
             {metodo === "cuenta_corriente" && (
-              <label style={{ display: "block" }}>
-                <span
-                  style={{
-                    display: "block",
-                    fontSize: ".75rem",
-                    color: color.apagado,
-                    marginBottom: ".25rem",
-                    textTransform: "uppercase",
-                  }}
-                >
+              <label className="block">
+                <span className="mb-1.5 block text-[0.7rem] font-bold tracking-[0.08em] text-apagado uppercase">
                   Cliente
                 </span>
                 <select
                   value={clienteId}
                   onChange={(e) => setClienteId(e.target.value)}
-                  style={{
-                    width: "100%",
-                    padding: ".6rem",
-                    borderRadius: ".6rem",
-                    border: `1px solid ${color.borde}`,
-                    background: "#0d141c",
-                    color: color.texto,
-                    fontSize: ".95rem",
-                    minHeight: "2.6rem",
-                  }}
+                  className="w-full min-h-[2.6rem] rounded-md border border-borde bg-hundido px-3 text-texto transicion focus-visible:border-acento focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-acento"
                 >
                   <option value="">Elegí un cliente…</option>
                   {clientes.map((c) => (
@@ -443,7 +385,7 @@ export function Ventas() {
           </Fila>
 
           {metodo === "cuenta_corriente" && !clienteId && (
-            <div style={{ ...tipografia.chico, color: color.aviso }}>
+            <div className="text-xs text-aviso">
               Para vender a cuenta hay que elegir a quién se le apunta la deuda.
             </div>
           )}
@@ -531,26 +473,15 @@ function Historial({ onAnular }: { onAnular: (v: { id: string; total: number }) 
           {ventas.map((v) => (
             <div
               key={v.id}
-              style={{
-                padding: ".75rem 1rem",
-                borderBottom: `1px solid ${color.borde}`,
-                opacity: v.anulada ? 0.55 : 1,
-              }}
+              className={cn(
+                "border-b border-borde px-4 py-3 transicion last:border-0",
+                v.anulada && "opacity-55"
+              )}
             >
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  gap: ".75rem",
-                  alignItems: "baseline",
-                  flexWrap: "wrap",
-                }}
-              >
+              <div className="flex flex-wrap items-baseline justify-between gap-3">
                 <div>
-                  <span style={{ fontWeight: 600 }}>
-                    {v.cliente || "Mostrador"}
-                  </span>
-                  <span style={{ ...tipografia.chico, color: color.apagado, marginLeft: ".5rem" }}>
+                  <span className="font-semibold">{v.cliente || "Mostrador"}</span>
+                  <span className="ml-2 text-xs text-apagado">
                     {new Date(v.fecha).toLocaleString("es-AR", {
                       day: "2-digit",
                       month: "2-digit",
@@ -559,22 +490,10 @@ function Historial({ onAnular }: { onAnular: (v: { id: string; total: number }) 
                     })}
                   </span>
                 </div>
-                <span style={{ fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>
-                  {dinero(v.total)}
-                </span>
+                <span data-cifra className="font-bold">{dinero(v.total)}</span>
               </div>
 
-              <div
-                style={{
-                  ...tipografia.chico,
-                  color: color.apagado,
-                  marginTop: ".2rem",
-                  display: "flex",
-                  gap: ".5rem",
-                  flexWrap: "wrap",
-                  alignItems: "center",
-                }}
-              >
+              <div className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-apagado">
                 {v.lineas.map((l: any, i: number) => (
                   <span key={i}>
                     {l.cantidad}× {l.nombre}
@@ -582,7 +501,7 @@ function Historial({ onAnular }: { onAnular: (v: { id: string; total: number }) 
                 ))}
               </div>
 
-              <div style={{ display: "flex", gap: ".4rem", marginTop: ".5rem", flexWrap: "wrap", alignItems: "center" }}>
+              <div className="mt-2 flex flex-wrap items-center gap-1.5">
                 <Pastilla>{v.metodo.replace("_", " ")}</Pastilla>
 
                 {v.anulada ? (
@@ -611,9 +530,7 @@ function Historial({ onAnular }: { onAnular: (v: { id: string; total: number }) 
               </div>
 
               {v.anulada && v.anuladaMotivo && (
-                <div style={{ ...tipografia.chico, color: color.mal, marginTop: ".3rem" }}>
-                  Motivo: {v.anuladaMotivo}
-                </div>
+                <div className="mt-1 text-xs text-mal">Motivo: {v.anuladaMotivo}</div>
               )}
             </div>
           ))}
@@ -659,21 +576,11 @@ function Anular({
   }
 
   return (
-    <div
-      style={{
-        position: "fixed",
-        inset: 0,
-        background: "rgba(0,0,0,.65)",
-        display: "grid",
-        placeItems: "center",
-        padding: "1rem",
-        zIndex: 200,
-      }}
-    >
-      <div style={{ width: "min(28rem, 100%)" }}>
+    <Capa onCerrar={onCerrar} titulo={`Anular venta de ${dinero(datos.total)}`}>
+      <div className="mx-auto w-full min(28rem, 100%)">
         <Panel titulo={`Anular venta de ${dinero(datos.total)}`}>
-          <div style={{ padding: "1rem", display: "grid", gap: ".85rem" }}>
-            <div style={{ ...tipografia.chico, color: color.apagado, lineHeight: 1.6 }}>
+          <div className="grid gap-3 p-4">
+            <div className="text-xs leading-relaxed text-apagado">
               Se devuelve el stock y se saca el dinero de la caja. Queda registrado,
               no se borra.
             </div>
@@ -685,16 +592,16 @@ function Anular({
               placeholder="Error de tecleo, devolución del cliente…"
               filas={3}
             />
-
-            <Fila cols={2}>
-              <Boton onClick={onCerrar}>Cancelar</Boton>
-              <Boton tipo="peligro" cargando={guardando} disabled={!motivo.trim()} onClick={confirmar}>
-                Anular
-              </Boton>
-            </Fila>
           </div>
+
+          <BotonFila>
+            <Boton onClick={onCerrar}>Cancelar</Boton>
+            <Boton tipo="peligro" cargando={guardando} disabled={!motivo.trim()} onClick={confirmar}>
+              Anular
+            </Boton>
+          </BotonFila>
         </Panel>
       </div>
-    </div>
+    </Capa>
   );
 }

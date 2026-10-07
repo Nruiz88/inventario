@@ -39,31 +39,31 @@ const variantes = cva(
         /* La acción principal de una pantalla. Solo una por vista: si
            hay dos botones azules, no hay ninguno que sea el principal. */
         primario:
-          "text-[#06121f] border-transparent hover:brightness-110 active:brightness-95",
+          "bg-primary text-primary-foreground border-transparent hover:brightness-110 active:brightness-95",
 
         normal:
-          "text-texto border-borde hover:border-borde-fuerte",
+          "bg-panel-2 text-texto border-borde hover:bg-borde hover:border-borde-fuerte",
 
         /* Acción secundaria. En un mostrador es la que más se usa:
            cobrar, aplicar. Con bordered se distingue de la principal
            sin gritar. */
         secundario:
-          "text-texto border-borde-fuerte hover:border-mal",
+          "bg-panel-2 border-borde-fuerte text-texto hover:bg-borde",
 
         fantasma:
-          "text-apagado border-transparent hover:bg-panel-2 hover:text-texto",
+          "bg-transparent text-apagado border-transparent hover:bg-panel-2 hover:text-texto",
 
         peligro:
-          "text-mal border-[#6b2b32] hover:border-mal",
+          "bg-[#3a1a1e] text-mal border-[#6b2b32] hover:bg-[#4a2028] hover:border-mal",
 
         /* Lo que destruye datos sin poder deshacerlo: separar una
            variante, anular una venta. El aviso va con el icono, no
            solo con el color, porque el color solo no se ve. */
         destructivo:
-          "text-[#2a0d10] border-transparent hover:brightness-110",
+          "bg-mal text-[#2a0d10] border-transparent hover:brightness-110",
 
         enlace:
-          "text-acento underline-offset-4 hover:underline p-0 h-auto min-h-0 border-transparent",
+          "bg-transparent border-transparent text-acento underline-offset-4 hover:underline p-0 h-auto min-h-0",
       },
       tamano: {
         normal: "text-sm",

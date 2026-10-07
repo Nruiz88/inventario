@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import { useApi } from "@/lib/ui/datos";
 import { dinero, aCentavos } from "@/lib/dinero";
-import { Panel, Boton, Campo, Area, Pastilla, Vacio, color, tipografia, Fila, Cifra } from "@/lib/ui/controles";
+import { cn } from "@/lib/utils";
+import { Panel, Boton, Campo, Area, Pastilla, Vacio, color, tipografia, Fila, Cifra, BotonFila } from "@/lib/ui/controles";
 import { Capa } from "@/components/productos-form";
 
 /* =========================================================
@@ -73,7 +74,7 @@ export function Caja() {
   const [abriendo, setAbriendo] = useState(false);
 
   return (
-    <div style={{ display: "grid", gap: "1rem" }}>
+    <div className="grid gap-4">
       {/* ── El arqueo ──
           La condición mira `arqueo.arqueo`, NO `arqueo`.
 
@@ -92,8 +93,8 @@ export function Caja() {
           justo cuando el dueño no sabe qué hacer con la pantalla. */}
       <Panel titulo="Arqueo del día">
         {!arqueo || !arqueo.arqueo ? (
-          <div style={{ padding: "1rem", display: "grid", gap: ".85rem" }}>
-            <div style={{ ...tipografia.normal, lineHeight: 1.65 }}>
+          <div className="grid gap-3 p-4">
+            <div className="text-sm leading-relaxed text-apagado">
               Hoy no hay arqueo abierto.
             </div>
             {/* Abrir y cerrar el día van en momentos distintos, y por eso
@@ -108,8 +109,8 @@ export function Caja() {
             </div>
           </div>
         ) : arqueo.cerrado ? (
-          <div style={{ padding: "1rem", display: "grid", gap: ".75rem" }}>
-            <div style={{ display: "flex", gap: "1.5rem", flexWrap: "wrap" }}>
+          <div className="grid gap-3 p-4">
+            <div className="flex flex-wrap gap-6">
               <Cifra etiqueta="Contado" valor={dinero(arqueo.arqueo.real ?? 0)} />
               <Cifra etiqueta="Sistema" valor={dinero(arqueo.arqueo.calculado ?? 0)} />
               <Cifra
@@ -126,11 +127,9 @@ export function Caja() {
             </div>
 
             {(arqueo.arqueo.diferencia ?? 0) === 0 ? (
-              <div style={{ ...tipografia.normal, color: color.ok }}>
-                Cuadró. El cajón está bien.
-              </div>
+              <div className="text-sm text-ok">Cuadró. El cajón está bien.</div>
             ) : (
-              <div style={{ ...tipografia.normal, color: color.aviso, lineHeight: 1.6 }}>
+              <div className="text-sm leading-relaxed text-aviso">
                 {(arqueo.arqueo.diferencia ?? 0) > 0
                   ? `Sobraron ${dinero(arqueo.arqueo.diferencia!)}. Puede ser cambio que quedó en el cajón, o un cobro anotado de más.`
                   : `Faltaron ${dinero(Math.abs(arqueo.arqueo.diferencia!))}. Un gasto sin anotar es lo primero que hay que mirar.`}
@@ -138,15 +137,15 @@ export function Caja() {
             )}
           </div>
         ) : (
-          <div style={{ padding: "1rem", display: "grid", gap: ".85rem" }}>
-            <div style={{ display: "flex", gap: "1.5rem", flexWrap: "wrap" }}>
+          <div className="grid gap-3 p-4">
+            <div className="flex flex-wrap gap-6">
               <Cifra etiqueta="Se abrió con" valor={dinero(arqueo.arqueo.inicial)} />
               <Cifra etiqueta="Entró" valor={dinero(arqueo.caja.ingresos)} tono="ok" />
               <Cifra etiqueta="Salió" valor={dinero(arqueo.caja.egresos)} tono="mal" />
               <Cifra etiqueta="Debería haber" valor={dinero(arqueo.esperado)} />
             </div>
 
-            <div style={{ ...tipografia.chico, color: color.apagado, lineHeight: 1.6 }}>
+            <div className="text-xs leading-relaxed text-apagado">
               «Debería haber» es lo que dice el sistema. Contá el cajón y anotá el
               número real: la diferencia la calcula el sistema, no se escribe.
             </div>
@@ -165,15 +164,7 @@ export function Caja() {
         titulo={`Movimientos de hoy · ${dinero(datos?.saldo || 0)}`}
         accion={<Boton tipo="primario" onClick={() => setNuevo(true)}>Anotar</Boton>}
       >
-        <div
-          style={{
-            display: "flex",
-            gap: "1.5rem",
-            padding: ".85rem 1rem",
-            borderBottom: `1px solid ${color.borde}`,
-            flexWrap: "wrap",
-          }}
-        >
+        <div className="flex flex-wrap gap-6 border-b border-borde px-4 py-3">
           <Cifra etiqueta="Entró" valor={dinero(datos?.ingresos || 0)} tono="ok" />
           <Cifra etiqueta="Salió" valor={dinero(datos?.egresos || 0)} tono="mal" />
           <Cifra etiqueta="Hoy" valor={dinero(datos?.saldo || 0)} />
@@ -185,25 +176,15 @@ export function Caja() {
           movimientos.map((m) => (
             <div
               key={m.id}
-              style={{
-                display: "grid",
-                gridTemplateColumns: "5.5rem 1fr 6rem",
-                gap: ".6rem",
-                padding: ".6rem 1rem",
-                borderBottom: `1px solid ${color.borde}`,
-                alignItems: "baseline",
-                fontSize: ".875rem",
-              }}
+              className="grid grid-cols-[5.5rem_1fr_6rem] items-baseline gap-x-2.5 border-b border-borde px-4 py-2.5 text-sm transicion last:border-0 hover:bg-panel-2/60"
             >
               <Pastilla tono={m.tipo === "ingreso" ? "ok" : "mal"}>
                 {m.tipo === "ingreso" ? "+" : "−"}
               </Pastilla>
 
-              <div style={{ minWidth: 0 }}>
-                <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                  {m.concepto}
-                </div>
-                <div style={{ ...tipografia.chico, color: color.apagado }}>
+              <div className="min-w-0">
+                <div className="truncate">{m.concepto}</div>
+                <div className="text-xs text-apagado">
                   {CATEGORIAS[m.categoria] || m.categoria}
                   {/* Las ventas en efectivo entran solas: poner un botón de
                       quitar ahí sería tentador, pero quitarlo rompe la
@@ -213,12 +194,11 @@ export function Caja() {
               </div>
 
               <div
-                style={{
-                  textAlign: "right",
-                  fontVariantNumeric: "tabular-nums",
-                  fontWeight: 600,
-                  color: m.tipo === "ingreso" ? color.ok : color.mal,
-                }}
+                data-cifra
+                className={cn(
+                  "text-right font-semibold",
+                  m.tipo === "ingreso" ? "text-ok" : "text-mal"
+                )}
               >
                 {dinero(m.monto)}
               </div>
@@ -297,9 +277,9 @@ function AbrirArqueo({
   }
 
   return (
-    <Capa onCerrar={onCerrar}>
+    <Capa onCerrar={onCerrar} titulo="Abrir el arqueo de hoy">
       <Panel titulo="Abrir el arqueo de hoy">
-        <div style={{ padding: "1rem", display: "grid", gap: ".85rem" }}>
+        <div className="grid gap-3 p-4">
           <Campo
             etiqueta="¿Cuánto hay en el cajón ahora?"
             valor={saldo}
@@ -309,7 +289,7 @@ function AbrirArqueo({
             autoFocus
           />
 
-          <div style={{ ...tipografia.chico, color: color.apagado, lineHeight: 1.6 }}>
+          <div className="text-xs leading-relaxed text-apagado">
             Contá el cajón y poné el número. Es el punto de partida del día: sin
             él, el total de los movimientos no se puede comparar con lo que hay
             adentro.
@@ -318,20 +298,12 @@ function AbrirArqueo({
           <Area etiqueta="Notas" valor={notas} onChange={setNotas} filas={2} />
         </div>
 
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "flex-end",
-            gap: ".5rem",
-            padding: ".85rem 1rem",
-            borderTop: `1px solid ${color.borde}`,
-          }}
-        >
+        <BotonFila>
           <Boton onClick={onCerrar}>Cancelar</Boton>
           <Boton tipo="primario" cargando={guardando} disabled={!saldo.trim()} onClick={abrir}>
             Abrir
           </Boton>
-        </div>
+        </BotonFila>
       </Panel>
     </Capa>
   );
@@ -378,12 +350,12 @@ function FormularioMovimiento({
   }
 
   return (
-    <Capa onCerrar={onCerrar}>
+    <Capa onCerrar={onCerrar} titulo="Anotar movimiento de caja">
       <Panel titulo="Anotar movimiento de caja">
-        <div style={{ padding: "1rem", display: "grid", gap: ".85rem" }}>
+        <div className="grid gap-3 p-4">
           <Fila cols={2}>
-            <label style={{ display: "block" }}>
-              <span style={{ ...tipografia.chico, color: color.apagado, display: "block", marginBottom: ".25rem", textTransform: "uppercase" }}>
+            <label className="block">
+              <span className="mb-1.5 block text-[0.7rem] font-bold tracking-[0.08em] text-apagado uppercase">
                 Entra o sale
               </span>
               <select
@@ -393,37 +365,21 @@ function FormularioMovimiento({
                   setTipo(t);
                   setCategoria(t === "egreso" ? "gasto" : "pago_deuda");
                 }}
-                style={{
-                  width: "100%",
-                  padding: ".6rem",
-                  borderRadius: ".6rem",
-                  border: `1px solid ${color.borde}`,
-                  background: "#0d141c",
-                  color: color.texto,
-                  minHeight: "2.6rem",
-                }}
+                className="w-full min-h-[2.6rem] rounded-md border border-borde bg-hundido px-3 text-texto transicion focus-visible:border-acento focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-acento"
               >
                 <option value="egreso">Sale</option>
                 <option value="ingreso">Entra</option>
               </select>
             </label>
 
-            <label style={{ display: "block" }}>
-              <span style={{ ...tipografia.chico, color: color.apagado, display: "block", marginBottom: ".25rem", textTransform: "uppercase" }}>
+            <label className="block">
+              <span className="mb-1.5 block text-[0.7rem] font-bold tracking-[0.08em] text-apagado uppercase">
                 Motivo
               </span>
               <select
                 value={categoria}
                 onChange={(e) => setCategoria(e.target.value)}
-                style={{
-                  width: "100%",
-                  padding: ".6rem",
-                  borderRadius: ".6rem",
-                  border: `1px solid ${color.borde}`,
-                  background: "#0d141c",
-                  color: color.texto,
-                  minHeight: "2.6rem",
-                }}
+                className="w-full min-h-[2.6rem] rounded-md border border-borde bg-hundido px-3 text-texto transicion focus-visible:border-acento focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-acento"
               >
                 {tipo === "egreso" ? (
                   <>
@@ -452,21 +408,13 @@ function FormularioMovimiento({
             filas={2}
           />
 
-          <div style={{ ...tipografia.chico, color: color.apagado, lineHeight: 1.6 }}>
+          <div className="text-xs leading-relaxed text-apagado">
             Las ventas en efectivo entran solas. Acá van los gastos, los retiros
             y los pagos a proveedor.
           </div>
         </div>
 
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "flex-end",
-            gap: ".5rem",
-            padding: ".85rem 1rem",
-            borderTop: `1px solid ${color.borde}`,
-          }}
-        >
+        <BotonFila>
           <Boton onClick={onCerrar}>Cancelar</Boton>
           <Boton
             tipo="primario"
@@ -476,7 +424,7 @@ function FormularioMovimiento({
           >
             Anotar
           </Boton>
-        </div>
+        </BotonFila>
       </Panel>
     </Capa>
   );
@@ -518,21 +466,12 @@ function CerrarArqueo({
   }
 
   return (
-    <Capa onCerrar={onCerrar}>
+    <Capa onCerrar={onCerrar} titulo="Cerrar el arqueo">
       <Panel titulo="Cerrar el arqueo">
-        <div style={{ padding: "1rem", display: "grid", gap: ".85rem" }}>
-          <div
-            style={{
-              padding: ".8rem",
-              borderRadius: ".5rem",
-              background: color.panel2,
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "baseline",
-            }}
-          >
-            <span style={{ ...tipografia.chico, color: color.apagado }}>El sistema dice</span>
-            <span style={{ fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>{dinero(esperado)}</span>
+        <div className="grid gap-3 p-4">
+          <div className="flex items-baseline justify-between gap-3 rounded-md bg-panel-2 px-3 py-2.5">
+            <span className="text-xs text-apagado">El sistema dice</span>
+            <span data-cifra className="font-bold">{dinero(esperado)}</span>
           </div>
 
           <Campo
@@ -546,27 +485,19 @@ function CerrarArqueo({
 
           <Area etiqueta="Notas (si no cuadra, escribí qué creés que pasó)" valor={notas} onChange={setNotas} filas={2} />
 
-          <div style={{ ...tipografia.chico, color: color.apagado, lineHeight: 1.6 }}>
+          <div className="text-xs leading-relaxed text-apagado">
             La diferencia la calcula el sistema. No se escribe a mano, porque un
             arqueo donde el dueño pone la diferencia no sirve para detectar que
             faltaba.
           </div>
         </div>
 
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "flex-end",
-            gap: ".5rem",
-            padding: ".85rem 1rem",
-            borderTop: `1px solid ${color.borde}`,
-          }}
-        >
+        <BotonFila>
           <Boton onClick={onCerrar}>Cancelar</Boton>
           <Boton tipo="primario" cargando={guardando} disabled={!real.trim()} onClick={cerrar}>
             Cerrar y ver la diferencia
           </Boton>
-        </div>
+        </BotonFila>
       </Panel>
     </Capa>
   );

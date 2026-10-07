@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import { useApi } from "@/lib/ui/datos";
 import { dinero, aCentavos } from "@/lib/dinero";
-import { Panel, Boton, Campo, Area, Pastilla, Vacio, color, tipografia, Fila } from "@/lib/ui/controles";
+import { cn } from "@/lib/utils";
+import { Panel, Boton, Campo, Area, Pastilla, Vacio, Fila, BotonFila } from "@/lib/ui/controles";
 import { Capa } from "@/components/productos-form";
 
 /* =========================================================
@@ -86,18 +87,9 @@ export function Compras() {
   const pendientes = lista.filter((c) => c.estado === "borrador");
 
   return (
-    <div style={{ display: "grid", gap: "1rem" }}>
+    <div className="grid gap-4">
       {pendientes.length > 0 && (
-        <div
-          style={{
-            padding: ".75rem 1rem",
-            borderRadius: ".6rem",
-            background: "#2a2417",
-            border: `1px solid ${color.aviso}55`,
-            color: color.aviso,
-            fontSize: ".875rem",
-          }}
-        >
+        <div className="rounded-md border border-aviso/40 bg-aviso/10 px-4 py-3 text-sm text-aviso">
           {pendientes.length === 1
             ? "Hay 1 pedido sin recibir. El stock todavía no entró."
             : `Hay ${pendientes.length} pedidos sin recibir. El stock todavía no entró.`}
@@ -114,39 +106,34 @@ export function Compras() {
           lista.map((c) => (
             <div
               key={c.id}
-              style={{
-                padding: ".85rem 1rem",
-                borderBottom: `1px solid ${color.borde}`,
-                opacity: c.estado === "anulada" ? 0.55 : 1,
-              }}
+              className={cn(
+                "border-b border-borde px-4 py-3.5 transicion last:border-0",
+                c.estado === "anulada" && "opacity-55"
+              )}
             >
-              <div style={{ display: "flex", justifyContent: "space-between", gap: ".75rem", alignItems: "baseline", flexWrap: "wrap" }}>
-                <div style={{ display: "flex", gap: ".5rem", alignItems: "baseline", flexWrap: "wrap" }}>
-                  <span style={{ fontWeight: 600 }}>{c.proveedor || "Sin proveedor"}</span>
-                  <span style={{ ...tipografia.chico, color: color.apagado }}>{c.facturaNro || "sin factura"}</span>
+              <div className="flex flex-wrap items-baseline justify-between gap-3">
+                <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
+                  <span className="font-semibold">{c.proveedor || "Sin proveedor"}</span>
+                  <span className="text-xs text-apagado">{c.facturaNro || "sin factura"}</span>
                   {c.estado === "borrador" && <Pastilla tono="aviso">Sin recibir</Pastilla>}
                   {c.estado === "recibida" && <Pastilla tono="ok">Recibida</Pastilla>}
                   {c.estado === "anulada" && <Pastilla tono="mal">Anulada</Pastilla>}
                 </div>
-                <span style={{ fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>{dinero(c.total)}</span>
+                <span data-cifra className="font-bold">{dinero(c.total)}</span>
               </div>
 
-              <div style={{ ...tipografia.chico, color: color.apagado, marginTop: ".3rem" }}>
+              <div className="mt-1 flex flex-wrap gap-x-3 text-xs text-apagado">
                 {c.lineas.map((l, i) => (
-                  <span key={i} style={{ marginRight: ".75rem" }}>
+                  <span key={i}>
                     {l.cantidad}× {l.nombre}
                   </span>
                 ))}
               </div>
 
-              {c.notas && (
-                <div style={{ ...tipografia.chico, color: color.apagado, marginTop: ".3rem" }}>
-                  {c.notas}
-                </div>
-              )}
+              {c.notas && <div className="mt-1 text-xs text-apagado">{c.notas}</div>}
 
               {c.estado !== "anulada" && (
-                <div style={{ display: "flex", gap: ".4rem", marginTop: ".6rem", flexWrap: "wrap" }}>
+                <div className="mt-2.5 flex flex-wrap gap-1.5">
                   {c.estado === "borrador" && (
                     <Boton tipo="primario" tamano="chico" onClick={() => recibir(c)}>
                       Marcar recibida
@@ -263,9 +250,9 @@ function FormularioCompra({
   }
 
   return (
-    <Capa onCerrar={onCerrar}>
+    <Capa onCerrar={onCerrar} titulo="Anotar pedido">
       <Panel titulo="Anotar pedido">
-        <div style={{ padding: "1rem", display: "grid", gap: ".85rem" }}>
+        <div className="grid gap-3 p-4">
           <Campo
             etiqueta="Buscar producto"
             valor={busqueda}
@@ -274,7 +261,7 @@ function FormularioCompra({
           />
 
           {encontrados.length > 0 && (
-            <div style={{ display: "flex", gap: ".35rem", flexWrap: "wrap" }}>
+            <div className="flex flex-wrap gap-1.5">
               {encontrados.map((v) => (
                 <Boton tamano="chico" key={v.id} onClick={() => agregar(v)}>
                   {v.nombre}
@@ -290,15 +277,9 @@ function FormularioCompra({
               {lineas.map((l, i) => (
                 <div
                   key={l.varianteId}
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "1fr 5rem 6rem 6rem auto",
-                    gap: ".4rem",
-                    alignItems: "end",
-                    padding: ".3rem 0",
-                  }}
+                  className="grid grid-cols-[1fr_5rem_6rem_6rem_auto] items-end gap-1.5 py-1"
                 >
-                  <span style={{ fontSize: ".875rem", alignSelf: "center" }}>{l.nombre}</span>
+                  <span className="self-center text-sm">{l.nombre}</span>
                   <Campo
                     etiqueta={i === 0 ? "Cant." : undefined}
                     valor={l.cantidad}
@@ -316,14 +297,7 @@ function FormularioCompra({
                     tipo="number"
                     step={0.01}
                   />
-                  <span
-                    style={{
-                      alignSelf: "center",
-                      textAlign: "right",
-                      fontVariantNumeric: "tabular-nums",
-                      fontSize: ".875rem",
-                    }}
-                  >
+                  <span data-cifra className="self-center text-right text-sm">
                     {dinero(Number(l.cantidad || 0) * aCentavos(l.costo || 0))}
                   </span>
                   <Boton
@@ -340,32 +314,26 @@ function FormularioCompra({
 
           <Fila cols={2}>
             <Campo etiqueta="Nº de factura" valor={facturaNro} onChange={setFacturaNro} />
-            <div style={{ display: "flex", alignItems: "flex-end", justifyContent: "flex-end" }}>
-              <div style={{ textAlign: "right" }}>
-                <div style={{ ...tipografia.chico, color: color.apagado }}>Total</div>
-                <div style={{ ...tipografia.cifra, color: color.acento }}>{dinero(total)}</div>
+            <div className="flex items-end justify-end">
+              <div className="text-right">
+                <div className="text-xs text-apagado">Total</div>
+                <div data-cifra className="text-[1.9rem] leading-tight font-bold text-acento">
+                  {dinero(total)}
+                </div>
               </div>
             </div>
           </Fila>
 
           <Area etiqueta="Notas" valor={notas} onChange={setNotas} filas={2} />
 
-          <div style={{ ...tipografia.chico, color: color.apagado, lineHeight: 1.6 }}>
+          <div className="text-xs leading-relaxed text-apagado">
             Anotar el pedido <strong>no</strong> mueve el stock. Entra cuando lo
             marques como recibido, así una compra anotada y olvidada no descuenta
             mercadería que nunca llegó.
           </div>
         </div>
 
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "flex-end",
-            gap: ".5rem",
-            padding: ".85rem 1rem",
-            borderTop: `1px solid ${color.borde}`,
-          }}
-        >
+        <BotonFila>
           <Boton onClick={onCerrar}>Cancelar</Boton>
           <Boton
             tipo="primario"
@@ -375,7 +343,7 @@ function FormularioCompra({
           >
             Anotar pedido
           </Boton>
-        </div>
+        </BotonFila>
       </Panel>
     </Capa>
   );
@@ -408,19 +376,11 @@ function AnularCompra({
   }
 
   return (
-    <Capa onCerrar={onCerrar}>
+    <Capa onCerrar={onCerrar} titulo={`Anular compra de ${dinero(compra.total)}`}>
       <Panel titulo={`Anular compra de ${dinero(compra.total)}`}>
-        <div style={{ padding: "1rem", display: "grid", gap: ".85rem" }}>
+        <div className="grid gap-3 p-4 text-sm leading-relaxed">
           {compra.estado === "recibida" && (
-            <div
-              style={{
-                padding: ".65rem .8rem",
-                borderRadius: ".5rem",
-                background: "#2a1a1d",
-                color: color.mal,
-                fontSize: ".85rem",
-              }}
-            >
+            <div className="rounded-md bg-mal/12 px-3 py-2.5 text-sm text-mal">
               Esta compra ya había entrado al stock. Al anularla, el stock
               <strong> sale</strong>: va a quedar como estaba antes de recibirla.
             </div>
@@ -435,20 +395,12 @@ function AnularCompra({
           />
         </div>
 
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "flex-end",
-            gap: ".5rem",
-            padding: ".85rem 1rem",
-            borderTop: `1px solid ${color.borde}`,
-          }}
-        >
+        <BotonFila>
           <Boton onClick={onCerrar}>Cancelar</Boton>
           <Boton tipo="peligro" cargando={guardando} disabled={!motivo.trim()} onClick={confirmar}>
             Anular
           </Boton>
-        </div>
+        </BotonFila>
       </Panel>
     </Capa>
   );

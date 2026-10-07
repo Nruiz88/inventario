@@ -3,7 +3,8 @@
 import { useEffect, useState } from "react";
 import { useApi } from "@/lib/ui/datos";
 import { dinero, aCentavos } from "@/lib/dinero";
-import { Panel, Boton, Campo, Pastilla, Vacio, color, tipografia, Cifra } from "@/lib/ui/controles";
+import { cn } from "@/lib/utils";
+import { Panel, Boton, Campo, Pastilla, Vacio, Cifra, BotonFila } from "@/lib/ui/controles";
 import { Capa } from "@/components/productos-form";
 
 /* =========================================================
@@ -72,26 +73,20 @@ export function Cuentas() {
   });
 
   return (
-    <div style={{ display: "grid", gap: "1rem" }}>
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fit, minmax(11rem, 1fr))",
-          gap: ".75rem",
-        }}
-      >
+    <div className="grid gap-4">
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(11rem,1fr))] gap-3">
         <Panel>
-          <div style={{ padding: "1rem" }}>
+          <div className="p-4">
             <Cifra valor={dinero(total)} etiqueta="Total que me deben" tono={total > 0 ? "aviso" : undefined} />
           </div>
         </Panel>
         <Panel>
-          <div style={{ padding: "1rem" }}>
+          <div className="p-4">
             <Cifra valor={deben} etiqueta="Clientes que deben" />
           </div>
         </Panel>
         <Panel>
-          <div style={{ padding: "1rem" }}>
+          <div className="p-4">
             <Cifra valor={clientes.length} etiqueta="Clientes" />
           </div>
         </Panel>
@@ -101,7 +96,7 @@ export function Cuentas() {
         titulo="Clientes"
         accion={<Boton tipo="primario" onClick={() => setNuevo(true)}>Nuevo cliente</Boton>}
       >
-        <div style={{ padding: "1rem", borderBottom: `1px solid ${color.borde}` }}>
+        <div className="border-b border-borde p-4">
           <Campo valor={busqueda} onChange={setBusqueda} placeholder="Buscar por nombre o teléfono" />
         </div>
 
@@ -113,38 +108,21 @@ export function Cuentas() {
           </Vacio>
         ) : (
           filtrados.map((c) => (
-            <div key={c.id} style={{ borderBottom: `1px solid ${color.borde}` }}>
-              <div
-                style={{
-                  display: "flex",
-                  justifyContent: "space-between",
-                  gap: ".75rem",
-                  alignItems: "center",
-                  padding: ".75rem 1rem",
-                  flexWrap: "wrap",
-                }}
-              >
-                <div>
-                  <span style={{ fontWeight: 600 }}>{c.nombre}</span>
-                  {c.telefono && (
-                    <span style={{ ...tipografia.chico, color: color.apagado, marginLeft: ".5rem" }}>
-                      {c.telefono}
-                    </span>
-                  )}
-                  {c.saldo === 0 && (
-                    <span style={{ marginLeft: ".5rem" }}>
-                      <Pastilla tono="ok">Al día</Pastilla>
-                    </span>
-                  )}
+            <div key={c.id} className="border-b border-borde last:border-0">
+              <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
+                <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                  <span className="font-semibold">{c.nombre}</span>
+                  {c.telefono && <span className="text-xs text-apagado">{c.telefono}</span>}
+                  {c.saldo === 0 && <Pastilla tono="ok">Al día</Pastilla>}
                 </div>
 
-                <div style={{ display: "flex", gap: ".75rem", alignItems: "center" }}>
+                <div className="flex items-center gap-3">
                   <span
-                    style={{
-                      fontWeight: 700,
-                      fontVariantNumeric: "tabular-nums",
-                      color: c.saldo > 0 ? color.aviso : c.saldo < 0 ? color.claro : color.apagado,
-                    }}
+                    data-cifra
+                    className={cn(
+                      "font-bold",
+                      c.saldo > 0 ? "text-aviso" : c.saldo < 0 ? "text-claro" : "text-apagado"
+                    )}
                   >
                     {dinero(c.saldo)}
                   </span>
@@ -167,31 +145,18 @@ export function Cuentas() {
                   de saldo, porque la pregunta que lo justifica es
                   «desde cuándo». */}
               {abierto === c.id && (
-                <div
-                  style={{
-                    padding: ".75rem 1rem",
-                    background: "#0d141c",
-                    borderTop: `1px solid ${color.borde}`,
-                  }}
-                >
+                <div className="border-t border-borde bg-hundido px-4 py-3">
                   {c.movimientos.length === 0 ? (
-                    <span style={{ ...tipografia.chico, color: color.apagado }}>
+                    <span className="text-xs text-apagado">
                       Sin movimientos: nunca compró a cuenta.
                     </span>
                   ) : (
                     c.movimientos.map((m) => (
                       <div
                         key={m.id}
-                        style={{
-                          display: "grid",
-                          gridTemplateColumns: "5rem 1fr 6rem",
-                          gap: ".6rem",
-                          alignItems: "baseline",
-                          padding: ".35rem 0",
-                          fontSize: ".85rem",
-                        }}
+                        className="grid grid-cols-[5rem_1fr_6rem] items-baseline gap-x-2.5 py-1 text-[0.85rem]"
                       >
-                        <span style={{ color: color.apagado, fontSize: ".78rem" }}>
+                        <span className="text-xs text-apagado">
                           {new Date(m.fecha).toLocaleDateString("es-AR", {
                             day: "2-digit",
                             month: "2-digit",
@@ -199,19 +164,19 @@ export function Cuentas() {
                           })}
                         </span>
 
-                        <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        <span className="min-w-0 truncate">
                           {m.tipo === "debe" && <Pastilla tono="mal">Debe</Pastilla>}
                           {m.tipo === "haber" && <Pastilla tono="ok">Paga</Pastilla>}
                           {m.tipo === "nota" && <Pastilla>Ajuste</Pastilla>}
-                          <span style={{ marginLeft: ".4rem" }}>{m.concepto}</span>
+                          <span className="ml-1.5">{m.concepto}</span>
                         </span>
 
                         <span
-                          style={{
-                            textAlign: "right",
-                            fontVariantNumeric: "tabular-nums",
-                            color: m.tipo === "debe" ? color.mal : m.tipo === "haber" ? color.ok : color.apagado,
-                          }}
+                          data-cifra
+                          className={cn(
+                            "text-right",
+                            m.tipo === "debe" ? "text-mal" : m.tipo === "haber" ? "text-ok" : "text-apagado"
+                          )}
                         >
                           {m.tipo === "debe" ? "+" : "−"}
                           {dinero(m.monto_cents)}
@@ -277,9 +242,9 @@ function FormularioCliente({
   }
 
   return (
-    <Capa onCerrar={onCerrar}>
+    <Capa onCerrar={onCerrar} titulo="Nuevo cliente">
       <Panel titulo="Nuevo cliente">
-        <div style={{ padding: "1rem", display: "grid", gap: ".85rem" }}>
+        <div className="grid gap-3 p-4">
           <Campo etiqueta="Nombre" valor={nombre} onChange={setNombre} autoFocus />
 
           <Campo
@@ -295,26 +260,18 @@ function FormularioCliente({
             onChange={setDocumento}
           />
 
-          <div style={{ ...tipografia.chico, color: color.apagado, lineHeight: 1.6 }}>
+          <div className="text-xs leading-relaxed text-apagado">
             Estos son los clientes de tu comercio, no usuarios de Nexo Studio. No
             entran nunca a este servicio ni tienen contraseña.
           </div>
         </div>
 
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "flex-end",
-            gap: ".5rem",
-            padding: ".85rem 1rem",
-            borderTop: `1px solid ${color.borde}`,
-          }}
-        >
+        <BotonFila>
           <Boton onClick={onCerrar}>Cancelar</Boton>
           <Boton tipo="primario" cargando={guardando} disabled={!nombre.trim()} onClick={guardar}>
             Crear
           </Boton>
-        </div>
+        </BotonFila>
       </Panel>
     </Capa>
   );
@@ -365,50 +322,31 @@ function FormularioCobro({
   }
 
   return (
-    <Capa onCerrar={onCerrar}>
+    <Capa onCerrar={onCerrar} titulo={`Cobro de ${cliente.nombre}`}>
       <Panel titulo={`Cobro de ${cliente.nombre}`}>
-        <div style={{ padding: "1rem", display: "grid", gap: ".85rem" }}>
-          <div
-            style={{
-              padding: ".8rem",
-              borderRadius: ".5rem",
-              background: color.panel2,
-              display: "flex",
-              justifyContent: "space-between",
-              alignItems: "baseline",
-            }}
-          >
-            <span style={{ ...tipografia.chico, color: color.apagado }}>Debe</span>
-            <span style={{ fontWeight: 700, fontVariantNumeric: "tabular-nums" }}>
-              {dinero(cliente.saldo)}
-            </span>
+        <div className="grid gap-3 p-4">
+          <div className="flex items-baseline justify-between gap-3 rounded-md bg-panel-2 px-3 py-2.5">
+            <span className="text-xs text-apagado">Debe</span>
+            <span data-cifra className="font-bold">{dinero(cliente.saldo)}</span>
           </div>
 
           <Campo etiqueta="Cuánto paga" valor={monto} onChange={setMonto} tipo="number" step={0.01} autoFocus />
 
           <Campo etiqueta="Concepto" valor={concepto} onChange={setConcepto} />
 
-          <div style={{ ...tipografia.chico, color: color.apagado, lineHeight: 1.6 }}>
+          <div className="text-xs leading-relaxed text-apagado">
             Esto baja la deuda. El dinero que entra al cajón se anota en
             <strong> Caja</strong>, que es donde se cuenta: si se anotara en los
             dos sitios, el arqueo sumaría el cobro dos veces.
           </div>
         </div>
 
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "flex-end",
-            gap: ".5rem",
-            padding: ".85rem 1rem",
-            borderTop: `1px solid ${color.borde}`,
-          }}
-        >
+        <BotonFila>
           <Boton onClick={onCerrar}>Cancelar</Boton>
           <Boton tipo="primario" cargando={guardando} disabled={aCentavos(monto) <= 0} onClick={guardar}>
             Anotar el cobro
           </Boton>
-        </div>
+        </BotonFila>
       </Panel>
     </Capa>
   );

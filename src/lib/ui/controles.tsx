@@ -1,17 +1,27 @@
+import { cn } from "@/lib/utils";
+
 /* =========================================================
    Los controles
    ---------------------------------------------------------
-   Estilos en línea y sin librería.
+   La piel de caja, cuentas, compras y ventas. La API no cambia:
+   mismos nombres, mismas props, mismos valores — solo cambia cómo se
+   pintan, para que las cuatro pantallas hablen el mismo idioma visual
+   que resumen y productos (Tailwind + los tokens de `globals.css`).
 
-   No es falta de criterio: es que el layout raíz y la pantalla de
-   entrada ya usan estilos en línea, y en un proyecto sin Tailwind lo
-   consistente es seguir en esa línea. Meter CSS Modules o styled-jsx en
-   la mitad de las pantallas deja dos sistemas conviviendo, y el que
-   llega tarde es siempre el que hay que cambiar.
+   ── POR QUÉ ESTÁN AQUÍ Y NO EN `components/ui` ──
 
-   Los valores salen de aquí, no de números escritos en cada pantalla:
-   el mismo rojo de error en cuatro sitios es cuatro sitios que se
-   desincronizan cuando alguien decide que el error es naranja.
+   Estos controles reciben `valor`/`onChange` de React (un string y un
+   setter), mientras que los de `components/ui` son los estándares de
+   shadcn (`value`/`onChange` del evento). Cambiar la firma sería
+   cambiar la lógica de cuatro pantallas a la vez, y este rediseño es
+   de piel: el objetivo es que se vean iguales sin tocar una sola
+   llamada a la API.
+
+   Los valores salen de los tokens de la hoja, no de números escritos
+   en cada pantalla: el mismo rojo de error en cuatro sitios son cuatro
+   sitios que se desincronizan cuando alguien decide que el error es
+   naranja. Para eso está `cn`: junta las clases y deja que el token
+   mande.
    ========================================================= */
 
 export const color = {
@@ -49,7 +59,12 @@ export const tipografia = {
   chico: { fontSize: ".78rem", lineHeight: 1.4 },
   normal: { fontSize: ".9rem", lineHeight: 1.5 },
   grande: { fontSize: "1.05rem", lineHeight: 1.4 },
-  cifra: { fontSize: "1.9rem", lineWeight: 700, fontVariantNumeric: "tabular-nums" as const, lineHeight: 1.1 },
+  cifra: {
+    fontSize: "1.9rem",
+    fontWeight: 700,
+    fontVariantNumeric: "tabular-nums" as const,
+    lineHeight: 1.1,
+  },
   cifraChica: { fontSize: "1.25rem", fontWeight: 700, fontVariantNumeric: "tabular-nums" as const },
 };
 
@@ -64,30 +79,11 @@ export function Panel({
   accion?: React.ReactNode;
 }) {
   return (
-    <section
-      style={{
-        background: color.panel,
-        border: `1px solid ${color.borde}`,
-        borderRadius: radio.lg,
-        overflow: "hidden",
-      }}
-    >
+    <section className="overflow-hidden rounded-lg border border-borde bg-panel text-texto">
       {(titulo || accion) && (
-        <header
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            gap: ".75rem",
-            padding: ".85rem 1rem",
-            borderBottom: `1px solid ${color.borde}`,
-            background: color.panel2,
-          }}
-        >
+        <header className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 border-b border-borde px-5 py-3.5">
           {titulo && (
-            <h2 style={{ margin: 0, fontSize: ".95rem", fontWeight: 600, color: color.texto }}>
-              {titulo}
-            </h2>
+            <h2 className="text-base font-semibold leading-tight text-texto">{titulo}</h2>
           )}
           {accion}
         </header>
@@ -109,7 +105,7 @@ export function Boton({
   children,
   onClick,
   tipo = "normal",
-    tamano = "normal",
+  tamano = "normal",
   disabled,
   cargando,
   ancho,
@@ -124,25 +120,11 @@ export function Boton({
   ancho?: boolean;
   title?: string;
 }) {
-  const base: React.CSSProperties = {
-    padding: tamano === "chico" ? ".45rem .7rem" : ".65rem 1rem",
-    borderRadius: radio.md,
-    border: `1px solid ${color.borde}`,
-    fontSize: tamano === "chico" ? ".8rem" : ".9rem",
-    fontWeight: 600,
-    cursor: disabled || cargando ? "wait" : "pointer",
-    opacity: disabled || cargando ? 0.55 : 1,
-    width: ancho ? "100%" : undefined,
-    minHeight: tamano === "chico" ? "2rem" : "2.6rem",
-    fontFamily: "inherit",
-    transition: "filter .12s ease",
-  };
-
-  const tonos: Record<string, React.CSSProperties> = {
-    normal: { background: color.panel2, color: color.texto },
-    primario: { background: color.acento, color: "#06121f", borderColor: color.acento },
-    peligro: { background: "#3a1a1e", color: color.mal, borderColor: "#6b2b32" },
-    fantasma: { background: "transparent", color: color.apagado, borderColor: "transparent" },
+  const tonos: Record<string, string> = {
+    normal: "bg-panel-2 text-texto border-borde hover:border-borde-fuerte",
+    primario: "bg-acento text-acento-oscuro border-transparent hover:brightness-110 active:brightness-95",
+    peligro: "bg-[#3a1a1e] text-mal border-[#6b2b32] hover:bg-[#4a2028] hover:border-mal",
+    fantasma: "bg-transparent text-apagado border-transparent hover:bg-panel-2 hover:text-texto",
   };
 
   return (
@@ -151,15 +133,24 @@ export function Boton({
       onClick={onClick}
       disabled={disabled || cargando}
       title={title}
-      style={{ ...base, ...tonos[tipo] }}
-      onMouseEnter={(e) => {
-        if (!disabled && !cargando) e.currentTarget.style.filter = "brightness(1.15)";
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.filter = "none";
-      }}
+      className={cn(
+        "inline-flex items-center justify-center gap-2 rounded-md border font-semibold whitespace-nowrap transicion",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-acento focus-visible:ring-offset-2 focus-visible:ring-offset-background",
+        "disabled:pointer-events-none disabled:opacity-55",
+        tamano === "chico" ? "px-3 py-1.5 text-xs" : "px-4 py-2.5 text-sm",
+        ancho && "w-full",
+        (disabled || cargando) && "cursor-wait",
+        tonos[tipo]
+      )}
     >
-      {cargando ? "…" : children}
+      {cargando && (
+        <span
+          aria-hidden
+          className="size-3.5 shrink-0 rounded-full border-2 border-current border-t-transparent"
+          style={{ animation: "giro 700ms linear infinite" }}
+        />
+      )}
+      {cargando ? <span>{children}</span> : children}
     </button>
   );
 }
@@ -188,44 +179,35 @@ export function Campo({
   step?: number;
   ancho?: boolean;
 }) {
-  return (
-    <label style={{ display: "block", width: ancho ? "100%" : undefined }}>
-      {etiqueta && (
-        <span
-          style={{
-            display: "block",
-            fontSize: ".75rem",
-            color: color.apagado,
-            marginBottom: ".25rem",
-            textTransform: "uppercase",
-            letterSpacing: ".04em",
-          }}
-        >
-          {etiqueta}
-        </span>
+  const entrada = (
+    <input
+      type={tipo}
+      value={valor}
+      onChange={(e) => onChange(e.target.value)}
+      placeholder={placeholder}
+      autoFocus={autoFocus}
+      disabled={disabled}
+      min={min}
+      step={step}
+      inputMode={tipo === "number" ? "decimal" : undefined}
+      className={cn(
+        "w-full rounded-md border border-borde bg-hundido px-3 py-2.5 text-texto transicion",
+        "placeholder:text-apagado/60",
+        "focus-visible:border-acento focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-acento",
+        "disabled:opacity-50",
+        ancho && "w-full"
       )}
-      <input
-        type={tipo}
-        value={valor}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        autoFocus={autoFocus}
-        disabled={disabled}
-        min={min}
-        step={step}
-        inputMode={tipo === "number" ? "decimal" : undefined}
-        style={{
-          width: "100%",
-          padding: ".6rem .7rem",
-          borderRadius: radio.md,
-          border: `1px solid ${color.borde}`,
-          background: "#0d141c",
-          color: color.texto,
-          fontSize: ".95rem",
-          fontFamily: "inherit",
-          minHeight: "2.6rem",
-        }}
-      />
+    />
+  );
+
+  if (!etiqueta) return <div className={ancho ? "w-full" : undefined}>{entrada}</div>;
+
+  return (
+    <label className="block w-full">
+      <span className="mb-1.5 block text-[0.7rem] font-bold tracking-[0.08em] text-apagado uppercase">
+        {etiqueta}
+      </span>
+      {entrada}
     </label>
   );
 }
@@ -245,18 +227,9 @@ export function Area({
   filas?: number;
 }) {
   return (
-    <label style={{ display: "block", width: "100%" }}>
+    <label className="block w-full">
       {etiqueta && (
-        <span
-          style={{
-            display: "block",
-            fontSize: ".75rem",
-            color: color.apagado,
-            marginBottom: ".25rem",
-            textTransform: "uppercase",
-            letterSpacing: ".04em",
-          }}
-        >
+        <span className="mb-1.5 block text-[0.7rem] font-bold tracking-[0.08em] text-apagado uppercase">
           {etiqueta}
         </span>
       )}
@@ -265,17 +238,11 @@ export function Area({
         onChange={(e) => onChange(e.target.value)}
         placeholder={placeholder}
         rows={filas}
-        style={{
-          width: "100%",
-          padding: ".6rem .7rem",
-          borderRadius: radio.md,
-          border: `1px solid ${color.borde}`,
-          background: "#0d141c",
-          color: color.texto,
-          fontSize: ".95rem",
-          fontFamily: "inherit",
-          resize: "vertical",
-        }}
+        className={cn(
+          "w-full resize-y rounded-md border border-borde bg-hundido px-3 py-2.5 text-texto transicion",
+          "placeholder:text-apagado/60",
+          "focus-visible:border-acento focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-acento"
+        )}
       />
     </label>
   );
@@ -291,7 +258,7 @@ export function BotonFila({
   tipo?: "normal" | "primario" | "peligro" | "fantasma";
 }) {
   return (
-    <div style={{ display: "flex", gap: ".5rem", justifyContent: "flex-end", padding: ".85rem 1rem", borderTop: `1px solid ${color.borde}`, flexWrap: "wrap" }}>
+    <div className="flex flex-wrap justify-end gap-2 border-t border-borde px-5 py-3.5">
       {children}
     </div>
   );
@@ -305,27 +272,19 @@ export function Pastilla({
   children: React.ReactNode;
   tono?: "neutro" | "ok" | "mal" | "aviso";
 }) {
-  const t: Record<string, string> = {
-    neutro: color.apagado,
-    ok: color.ok,
-    mal: color.mal,
-    aviso: color.aviso,
+  const tonos: Record<string, string> = {
+    neutro: "border-borde-fuerte bg-panel-2 text-apagado",
+    ok: "border-ok/40 bg-ok/12 text-ok",
+    mal: "border-mal/45 bg-mal/12 text-mal",
+    aviso: "border-aviso/40 bg-aviso/12 text-aviso",
   };
+
   return (
     <span
-      style={{
-        display: "inline-block",
-        padding: ".12rem .45rem",
-        borderRadius: radio.sm,
-        fontSize: ".7rem",
-        fontWeight: 700,
-        textTransform: "uppercase",
-        letterSpacing: ".03em",
-        color: t[tono],
-        border: `1px solid ${t[tono]}44`,
-        background: t[tono] + "14",
-        whiteSpace: "nowrap",
-      }}
+      className={cn(
+        "inline-flex w-fit items-center gap-1.5 whitespace-nowrap rounded-full border px-2 py-0.5 text-[0.7rem] font-bold tracking-wide uppercase",
+        tonos[tono]
+      )}
     >
       {children}
     </span>
@@ -342,43 +301,34 @@ export function Cifra({
   etiqueta?: string;
   tono?: "ok" | "mal" | "aviso";
 }) {
-  const t = tono === "ok" ? color.ok : tono === "mal" ? color.mal : tono === "aviso" ? color.aviso : color.texto;
+  const colorClase =
+    tono === "ok" ? "text-ok" : tono === "mal" ? "text-mal" : tono === "aviso" ? "text-aviso" : "text-texto";
+
   return (
     <div>
       {etiqueta && (
-        <div style={{ ...tipografia.chico, color: color.apagado, marginBottom: ".15rem" }}>
+        <div className="mb-1 text-[0.7rem] font-bold tracking-[0.08em] text-apagado uppercase">
           {etiqueta}
         </div>
       )}
-      <div style={{ ...tipografia.cifra, color: t }}>{valor}</div>
+      <div data-cifra className={cn("text-[1.9rem] leading-tight font-bold", colorClase)}>
+        {valor}
+      </div>
     </div>
   );
 }
 
 export function Vacio({ children }: { children: React.ReactNode }) {
   return (
-    <div
-      style={{
-        padding: "2rem 1rem",
-        textAlign: "center",
-        color: color.apagado,
-        fontSize: ".9rem",
-        lineHeight: 1.6,
-      }}
-    >
-      {children}
-    </div>
+    <div className="px-4 py-8 text-center text-sm leading-relaxed text-apagado">{children}</div>
   );
 }
 
 export function Fila({ children, cols = 1 }: { children: React.ReactNode; cols?: number }) {
   return (
     <div
-      style={{
-        display: "grid",
-        gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))`,
-        gap: ".7rem",
-      }}
+      className="grid gap-3"
+      style={{ gridTemplateColumns: `repeat(${cols}, minmax(0, 1fr))` }}
     >
       {children}
     </div>
@@ -387,11 +337,9 @@ export function Fila({ children, cols = 1 }: { children: React.ReactNode; cols?:
 
 /** El relleno de la pantalla, compartido por todas. */
 export function Contenedor({ children }: { children: React.ReactNode }) {
-  return (
-    <div style={{ maxWidth: "76rem", margin: "0 auto", padding: "1.25rem 1rem 5rem" }}>{children}</div>
-  );
+  return <div className="mx-auto w-full max-w-[76rem] px-4 pt-5 pb-20">{children}</div>;
 }
 
 export function Separador() {
-  return <div style={{ height: 1, background: color.borde, margin: "1rem 0" }} />;
+  return <div className="my-4 h-px bg-borde" />;
 }

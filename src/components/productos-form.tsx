@@ -3,7 +3,8 @@
 import { useEffect, useRef, useState } from "react";
 import { useApi } from "@/lib/ui/datos";
 import { aCentavos } from "@/lib/dinero";
-import { Panel, Boton, Campo, Area, color, tipografia, Fila, BotonFila } from "@/lib/ui/controles";
+import { cn } from "@/lib/utils";
+import { Panel, Boton, Campo, Area, Fila, BotonFila } from "@/lib/ui/controles";
 
 /* =========================================================
    Los modales de productos
@@ -188,7 +189,7 @@ export function Formulario({
   return (
     <Capa onCerrar={onCerrar} titulo={editando ? `Editar ${producto!.nombre}` : "Nuevo producto"}>
       <Panel titulo={editando ? `Editar ${producto!.nombre}` : "Nuevo producto"}>
-        <div style={{ padding: "1rem", display: "grid", gap: ".85rem" }}>
+        <div className="grid gap-3 p-4">
           <Campo etiqueta="Nombre" valor={nombre} onChange={setNombre} placeholder="Gaseosa" autoFocus />
 
           {/* ⚠️  NO HAY UN CAMPO DE «STOCK INICIAL» AQUÍ ──
@@ -211,9 +212,9 @@ export function Formulario({
 
           {!editando && (
             <>
-              <div style={{ height: 1, background: color.borde, margin: ".25rem 0" }} />
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-                <span style={{ fontWeight: 600, fontSize: ".9rem" }}>Presentaciones</span>
+              <div className="my-1 h-px bg-borde" />
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-semibold">Presentaciones</span>
                 <Boton tamano="chico" onClick={nuevaVariante}>
                   Agregar
                 </Boton>
@@ -222,16 +223,11 @@ export function Formulario({
               {variantes.map((v, i) => (
                 <div
                   key={i}
-                  style={{
-                    display: "grid",
-                    /* Seis campos y el botón. El ancho del nombre es mayor porque es el
+                  /* Seis campos y el botón. El ancho del nombre es mayor porque es el
                      único que es texto de verdad; los otros cinco son
                      números de tres o cuatro cifras, y con el mismo
                      ancho que el nombre quedan apiñados. */
-                  gridTemplateColumns: "1.4fr 1fr 1fr 1fr .8fr .8fr auto",
-                    gap: ".4rem",
-                    alignItems: "end",
-                  }}
+                  className="grid grid-cols-[1.4fr_1fr_1fr_1fr_.8fr_.8fr_auto] items-end gap-1.5"
                 >
                   <Campo
                     etiqueta={i === 0 ? "Presentación" : undefined}
@@ -299,7 +295,7 @@ export function Formulario({
                 </div>
               ))}
 
-              <div style={{ ...tipografia.chico, color: color.apagado, lineHeight: 1.6 }}>
+              <div className="text-xs leading-relaxed text-apagado">
                 El stock inicial entra como movimiento, para que el historial cuadre
                 desde el primer día. Si lo pones en cero, contá después con «Mover».
               </div>
@@ -307,16 +303,7 @@ export function Formulario({
           )}
 
           {editando && producto!.variantes.length > 0 && (
-            <div
-              style={{
-                padding: ".75rem",
-                borderRadius: ".5rem",
-                background: color.panel2,
-                fontSize: ".85rem",
-                color: color.apagado,
-                lineHeight: 1.6,
-              }}
-            >
+            <div className="rounded-md bg-panel-2 px-3 py-2.5 text-[0.85rem] leading-relaxed text-apagado">
               Las presentaciones no se editan desde acá. Para cambiar un precio,
               usá «Mover» no: eso mueve stock. Editá la presentación en su propia
               ficha.
@@ -385,28 +372,20 @@ export function MoverStock({
   return (
     <Capa onCerrar={onCerrar} titulo={`Mover stock · ${variante.nombre || "Producto"}`}>
       <Panel titulo={variante.nombre || "Producto"}>
-        <div style={{ padding: "1rem", display: "grid", gap: ".85rem" }}>
-          <div style={{ ...tipografia.chico, color: color.apagado }}>
-            Ahora hay <strong style={{ color: color.texto }}>{variante.stock}</strong>.
+        <div className="grid gap-3 p-4">
+          <div className="text-xs text-apagado">
+            Ahora hay <strong className="text-texto">{variante.stock}</strong>.
           </div>
 
           <Fila cols={2}>
-            <label style={{ display: "block" }}>
-              <span style={{ ...tipografia.chico, color: color.apagado, display: "block", marginBottom: ".25rem", textTransform: "uppercase" }}>
+            <label className="block">
+              <span className="mb-1.5 block text-[0.7rem] font-bold tracking-[0.08em] text-apagado uppercase">
                 Qué pasó
               </span>
               <select
                 value={tipo}
                 onChange={(e) => setTipo(e.target.value)}
-                style={{
-                  width: "100%",
-                  padding: ".6rem",
-                  borderRadius: ".6rem",
-                  border: `1px solid ${color.borde}`,
-                  background: "#0d141c",
-                  color: color.texto,
-                  minHeight: "2.6rem",
-                }}
+                className="w-full min-h-[2.6rem] rounded-md border border-borde bg-hundido px-3 text-texto transicion focus-visible:border-acento focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-acento"
               >
                 <option value="merma">Se rompió o se venció (resta)</option>
                 <option value="devolucion">Nos devolvieron (suma)</option>
@@ -427,13 +406,10 @@ export function MoverStock({
               se puede. Un trigger que lo rechaza deja al dueño con el
               formulario lleno y un error de Postgres arriba. */}
           <div
-            style={{
-              padding: ".65rem .8rem",
-              borderRadius: ".5rem",
-              background: despues < 0 ? "#2a1a1d" : color.panel2,
-              color: despues < 0 ? color.mal : color.apagado,
-              fontSize: ".85rem",
-            }}
+            className={cn(
+              "rounded-md px-3 py-2.5 text-[0.85rem]",
+              despues < 0 ? "bg-mal/12 text-mal" : "bg-panel-2 text-apagado"
+            )}
           >
             {despues < 0
               ? `No se puede: quedan ${variante.stock} y el movimiento es de ${n}.`
@@ -508,15 +484,15 @@ export function Baja({
       titulo={datos.variante ? `Desactivar presentación · ${nombre}` : `Desactivar producto · ${nombre}`}
     >
       <Panel titulo={datos.variante ? "Desactivar presentación" : "Desactivar producto"}>
-        <div style={{ padding: "1rem", display: "grid", gap: ".85rem", fontSize: ".9rem", lineHeight: 1.65 }}>
-          <p style={{ margin: 0 }}>
+        <div className="grid gap-3 p-4 text-sm leading-relaxed">
+          <p className="m-0">
             Vas a desactivar <strong>{nombre}</strong>.
           </p>
-          <p style={{ margin: 0, color: color.apagado }}>
+          <p className="m-0 text-apagado">
             Deja de aparecer en la caja, pero sigue en el histórico y en los informes.
             Podés volver a activarlo.
           </p>
-          <p style={{ margin: 0, color: color.apagado, fontSize: ".85rem" }}>
+          <p className="m-0 text-[0.85rem] text-apagado">
             No se borra nunca: si tiene ventas registradas, borrarlo se llevaría
             por delante el historial de por qué el stock está como está.
           </p>
