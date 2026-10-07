@@ -180,12 +180,93 @@
 }
 
 /* =========================================================
-   Lo que no puede dejar de estar en toda la aplicación
+   La tabla que se convierte en tarjeta
    ---------------------------------------------------------
-   No son utilidades: son reglas del programa. Van aquí y no en cada
-   componente porque basta con que una pantalla se olvide de una para
-   que el conjunto parezca roto.
-   ========================================================= */
+   Un inventario se mira en un móvil colgado al lado de la caja. Con
+   `overflow-x: auto` la tabla se sale de la pantalla y enseña la
+   primera columna más una franja: no avisa de que hay algo más a la
+   derecha, y quien no sepa que la tabla continúa se queda con la mitad
+   de los datos sin enterarse.
+
+   Con la fila convertida en tarjeta, cada dato conserva su etiqueta y
+   no hay nada que descubrir. Se pierde la comparación de una fila con
+   la de al lado, y en un móvil no hay forma de tener las dos: a 390 px
+   caben tres columnas con letra de 10 px y la lista es ilegible.
+
+   El nombre de la columna sale de `data-col`, que va en cada celda. No
+   se puede leer de la cabecera: `attr()` solo lee atributos del
+   elemento que lo lleva, y la cabecera es otro elemento. Por eso
+   `data-col` es un nombre corto y no el texto de la cabecera.
+
+   ── POR QUÉ LOS NÚMEROS NO LLEVAN SU ETIQUETA ──
+
+   Porque un importe con "Importe" al lado de cada uno, en una columna
+   de ocho cifras, es un muro. En la tabla ancha la cabecera ya dice
+   qué es cada columna y el número va solo; en la tarjeta, el nombre
+   corto va en el `data-col` del `td::before`, que es lo que hace de
+   etiqueta. La regla de que `data-col` esté vacío es la que apaga esa
+   pseudo-etiqueta para las cifras. */
+@media (max-width: 640px) {
+  .tabla-tarjeta thead {
+    display: none;
+  }
+
+  .tabla-tarjeta,
+  .tabla-tarjeta tbody,
+  .tabla-tarjeta tr,
+  .tabla-tarjeta td {
+    display: block;
+    width: 100%;
+  }
+
+  .tabla-tarjeta tr {
+    margin-bottom: 0.75rem;
+    padding: 0.35rem 0;
+    border: 1px solid var(--color-borde);
+    border-radius: var(--radius-md);
+    background: var(--color-hundido);
+  }
+
+  .tabla-tarjeta tr:last-child {
+    margin-bottom: 0;
+  }
+
+  .tabla-tarjeta td {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 1rem;
+    padding: 0.4rem 0.85rem;
+    text-align: left;
+    border: 0;
+  }
+
+  .tabla-tarjeta td::before {
+    content: attr(data-col);
+    flex: none;
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--color-apagado);
+  }
+
+  /* `data-col` vacío = sin etiqueta. Es como se apaga la
+     pseudo-etiqueta de las cifras sin tener que poner una clase más en
+     cada celda. */
+  .tabla-tarjeta td[data-col=""]::before {
+    content: none;
+  }
+
+  /* La celda que manda: se come el ancho y no repite su etiqueta. */
+  .tabla-tarjeta td[data-principal] {
+    padding-bottom: 0.5rem;
+  }
+
+  .tabla-tarjeta td[data-principal]::before {
+    content: none;
+  }
+}
 
 @layer base {
   /* El fondo del papel sale de la herramienta del sistema, no de una

@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import { Casilla } from "@/components/ui/input";
 import { useApi } from "@/lib/ui/datos";
 import { dinero, aNumero, aCentavos, margen } from "@/lib/dinero";
 import {
@@ -516,14 +517,11 @@ function Historial({ onAnular }: { onAnular: (v: { id: string; total: number }) 
     <Panel
       titulo={soloPendientes ? "Ventas sin facturar" : "Ventas"}
       accion={
-        <label style={{ ...tipografia.chico, color: color.apagado, cursor: "pointer", display: "flex", gap: ".4rem", alignItems: "center" }}>
-          <input
-            type="checkbox"
-            checked={soloPendientes}
-            onChange={(e) => setSoloPendientes(e.target.checked)}
-          />
-          Solo sin facturar
-        </label>
+        <Casilla
+          etiqueta="Solo sin facturar"
+          checked={soloPendientes}
+          onChange={(e) => setSoloPendientes(e.target.checked)}
+        />
       }
     >
       {ventas.length === 0 ? (

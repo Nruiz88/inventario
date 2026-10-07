@@ -92,6 +92,11 @@ export async function GET() {
     stock: number;
     stock_minimo: number;
     nombre_variante: string;
+    /* Los dos precios, para valorar el depósito. Se piden porque sin
+       ellos no hay forma de saber cuánto dinero hay parado en el stock,
+       que es la primera pregunta de un almacén. */
+    precio_venta_cents: number;
+    precio_costo_cents: number;
     inv_productos: ProductoAnidado;
   };
 
@@ -101,7 +106,9 @@ export async function GET() {
 
   const { data: variantesRaw, error: eVar } = await db
     .from("inv_variantes")
-    .select("id, stock, stock_minimo, nombre_variante, inv_productos(nombre)")
+    .select(
+      "id, stock, stock_minimo, nombre_variante, precio_venta_cents, precio_costo_cents, inv_productos(nombre)"
+    )
     .eq("activo", true)
     .limit(2000);
 
@@ -117,6 +124,48 @@ export async function GET() {
   const bajo = todas.filter((v) => v.stock <= (v.stock_minimo || 0));
   const enCero = todas.filter((v) => v.stock === 0);
 
+  /* ── Cuánto dinero hay parado en el stock ──
+
+     Esta es la cifra que un almacén necesita y que no sale por ninguna
+     parte: cuánto hay en el depósito y a qué precio se compró. Sin ella
+     no se sabe si el negocio está sano o si lleva meses acumulando
+     mercadería que no se mueve, que es como se muere un kiosco sin que
+     se entere.
+
+     Se calcula aquí y no en el servidor de la pantalla porque la
+     consulta de variantes ya está hecha: pedir los dos precios no
+     cuesta una vuelta, y pedirlos en otro sitio sí.
+
+     `margenStock` es lo mismo visto como rentabilidad: la diferencia
+     entre lo que costó y lo que se vendería, sobre lo que se vendería.
+     Con un 30 % de margen, un depósito de $100.000 representa
+     $142.857 de venta futura.
+
+     OJO CON LAS VARIANTES SIN COSTE. Una variante con precio de coste
+     cero no es gratis: es una variante a la que no se le ha puesto el
+     coste. Entra en el valor de venta y baja el margen, que es
+     exactamente lo que hay que ver: hay stock que no se puede valorar.
+     Por eso se cuentan aparte. */
+  const valorStockCosto = todas.reduce(
+    (suma, v) => suma + (v.stock || 0) * (v.precio_costo_cents || 0),
+    0
+  );
+  const valorStockVenta = todas.reduce(
+    (suma, v) => suma + (v.stock || 0) * (v.precio_venta_cents || 0),
+    0
+  );
+  const sinCoste = todas.filter((v) => (v.stock || 0) > 0 && !v.precio_costo_cents).length;
+
+  /* ── Cuánto falta para llegar al mínimo ──
+
+     En la lista de stock bajo se veía "3" y al lado "mín. 4", y había
+     que restar mentalmente para saber que faltaba uno. La pregunta de
+     un comprador es "cuántas unidades me faltan", no "cuál es el
+     mínimo", así que se calcula la diferencia y se enseña la
+     diferencia.
+
+     Y en unidades, no en dinero: es lo que va escrito en el pedido. */
+
   /*  Dinero  */
   const [ventasHoy, treinta, caja, cuentas] = await Promise.all([
     db
@@ -128,7 +177,7 @@ export async function GET() {
 
     db
       .from("inv_ventas")
-      .select("total_cents")
+      .select("fecha, total_cents")
       .eq("anulada", false)
       .gte("fecha", desde30),
 
@@ -160,6 +209,34 @@ export async function GET() {
 
   const totalHoy = sumar(ventasHoy.data as any[], "total_cents");
   const total30 = sumar(treinta.data as any[], "total_cents");
+
+  /* ── La serie de treinta días ──
+
+     Treinta entradas, siempre. Los días sin venta son un cero y no un
+     hueco: si se saltaran, cuatro ventas en el mes se verían como una
+     barra y parecería que se vendió mucho. Un eje de tiempo que se
+     contrae no es un eje de tiempo.
+
+     Se rellena desde el más antiguo al más reciente, para que la barra
+     de la derecha sea siempre la de ayer. Un dueño que mira el resumen
+     un viernes espera que lo último sea el viernes. */
+  const porDia: { fecha: string; total: number }[] = [];
+  {
+    const porFecha = new Map<string, number>();
+    for (const v of (treinta.data as any[]) || []) {
+      if (!v?.fecha) continue;
+      const dia = String(v.fecha).slice(0, 10);
+      porFecha.set(dia, (porFecha.get(dia) || 0) + (v.total_cents || 0));
+    }
+
+    const hoyDate = new Date(hoyIso + "T12:00:00Z");
+    for (let i = 29; i >= 0; i--) {
+      const d = new Date(hoyDate);
+      d.setUTCDate(d.getUTCDate() - i);
+      const iso = d.toISOString().slice(0, 10);
+      porDia.push({ fecha: iso, total: porFecha.get(iso) || 0 });
+    }
+  }
 
   const cajaDelDia =
     sumar(caja.data as any[], "monto_cents", "ingreso") -
@@ -224,6 +301,22 @@ export async function GET() {
         bajo: bajo.length,
         /* Cuántos están en cero, que es lo que hay que reponer HOY. */
         enCero: enCero.length,
+        /* El dinero que hay parado en el deposito. Sin esto no se
+           sabe si el negocio esta sano: se puede estar vendiendo bien
+           con el deposito lleno de mercaderia que no se mueve, y el
+           banco dice que no hay nada. */
+        valorCosto: valorStockCosto,
+        valorVenta: valorStockVenta,
+        /* El margen que lleva ese deposito, sobre el precio de venta.
+           Con 30 %, un deposito de $100.000 son $142.857 de venta
+           futura. */
+        margenStock: valorStockVenta > 0
+          ? (valorStockVenta - valorStockCosto) / valorStockVenta
+          : 0,
+        /* Variantes con stock y sin coste puesto. Se cuentan aparte
+           porque no es un error de calculo: es informacion que falta,
+           y el margen de abajo ya sale falseado por ellas. */
+        sinCoste,
         /* Los diez más urgentes, primero los que están en cero. */
         lista: bajo
           .slice()
@@ -235,6 +328,10 @@ export async function GET() {
             variante: v.nombre_variante,
             stock: v.stock,
             minimo: v.stock_minimo || 0,
+            /* Lo que hay que pedir para llegar al minimo. Es la cifra
+               que va escrita en el pedido, y es la que el dueno mira:
+               el minimo solo sirve para saber si hay que pedir. */
+            faltan: Math.max(0, (v.stock_minimo || 0) - (v.stock || 0)),
           })),
       },
 
@@ -246,6 +343,7 @@ export async function GET() {
       },
 
       treintaDias: {
+      porDia,
         total: total30,
         /* El promedio diario es lo que compara con "cuánto vendí el mes
            pasado", que es la pregunta de un dueño con un kiosco. */

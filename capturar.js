@@ -122,12 +122,30 @@ async function main() {
       const m = await pagina.evaluate(() => {
         const chicos = [];
         for (const e of document.querySelectorAll("button, a, input, select, [role=button]")) {
-          const c = e.getBoundingClientRect();
+          /* ── El objetivo real, no el elemento ──
+
+             Una casilla de 18 píxeles dentro de una etiqueta de 36 no es
+             un problema: lo que se pulsa es la etiqueta. Medir el
+             `input` da un falso positivo que hides el arreglo, y como
+             el arreglo estaba hecho, el aviso iba a quedarse ahí para
+             siempre y a enseñar a ignorar la herramienta.
+
+             Para un `input` o un `select` lo que se mide es su
+             `label`, o su padre si no hay etiqueta. */
+          let objetivo = e;
+          if ((e.tagName === "INPUT" || e.tagName === "SELECT") && e.closest("label")) {
+            objetivo = e.closest("label");
+          }
+
+          const c = objetivo.getBoundingClientRect();
           if (c.width === 0 || c.height === 0) continue;
           if (c.height < 32) {
             chicos.push({
-              etiqueta: (e.textContent || e.getAttribute("aria-label") || e.tagName).trim().slice(0, 20),
+              etiqueta: (objetivo.textContent || e.getAttribute("aria-label") || objetivo.tagName)
+                .trim()
+                .slice(0, 20),
               alto: Math.round(c.height),
+              que: objetivo === e ? "" : " (dentro de " + e.tagName.toLowerCase() + ")",
             });
           }
         }
@@ -140,8 +158,60 @@ async function main() {
         const porTabla = document.querySelectorAll("tbody tr").length;
         const rejillas = document.querySelectorAll("[data-fila]").length;
 
+        /* ── Quién es el que desborda ──
+
+           Saber que la página se sale 24 píxeles no sirve de nada: hay
+           que saber qué elemento es. Se recorren los nodos y se busca
+           el último cuyo borde derecho pasa de la ventana.
+
+           El ÚLTIMO y no el primero a propósito. El primero es casi
+           siempre el `body` o un contenedor, porque todos se estiran
+           con el contenido. El que se sale de verdad es el más interno,
+           y por eso se baja hasta el fondo del árbol.
+
+           Y se acota a cinco: si hay veinte nodos que se salen, lo que
+           importa es el primero de ellos, que es el que empuja a todos
+           los demás. */
+        const limite = window.innerWidth + 1;
+        const culpables = [];
+
+        /* Lo que vive dentro de un contenedor con scroll horizontal no
+           se está saliendo: se puede llegar a ello desplazando. La
+           barra de secciones es exactamente eso, y sin esta excepción
+           salía marcada en las seis pantallas, con cuatro pestañas
+           "demasiado anchas" que no lo están. */
+        const enScroll = (nodo) => {
+          let p = nodo.parentElement;
+          while (p && p !== document.body) {
+            const ov = getComputedStyle(p).overflowX;
+            if (ov === "auto" || ov === "scroll" || ov === "hidden") return true;
+            p = p.parentElement;
+          }
+          return false;
+        };
+
+        (function buscar(nodo) {
+          if (culpables.length >= 5) return;
+          for (const hijo of nodo.children || []) {
+            const r = hijo.getBoundingClientRect();
+            if (r.width > 0 && r.right > limite && !enScroll(hijo)) {
+              culpables.push({
+                etiqueta: hijo.tagName.toLowerCase() +
+                  (typeof hijo.className === "string" && hijo.className
+                    ? "." + hijo.className.split(/\s+/).slice(0, 3).join(".")
+                    : ""),
+                derecha: Math.round(r.right),
+                ancho: Math.round(r.width),
+                texto: (hijo.textContent || "").trim().slice(0, 28),
+              });
+            }
+            buscar(hijo);
+          }
+        })(document.body);
+
         return {
           desborde: document.documentElement.scrollWidth - window.innerWidth,
+          culpables,
           chicos: chicos.slice(0, 5),
           totalChicos: chicos.length,
           tablas,
@@ -168,7 +238,7 @@ async function main() {
       if (m.totalChicos) {
         problemas.push(
           "  " + donde + ": " + m.totalChicos + " objetivos por debajo de 32px" +
-          m.chicos.map((c) => "\n      " + c.etiqueta + " (" + c.alto + "px)").join("")
+          m.chicos.map((c) => "\n      " + c.etiqueta + (c.que || "") + " (" + c.alto + "px)").join("")
         );
       }
       for (const t of m.tablas) {
@@ -176,7 +246,15 @@ async function main() {
           problemas.push("  " + donde + ": tabla de " + t.ancho + "px en un hueco de " + t.padre);
         }
       }
-      if (m.desborde > 0) problemas.push("  " + donde + ": desborde de " + m.desborde + "px");
+      if (m.desborde > 0) {
+        problemas.push(
+          "  " + donde + ": desborde de " + m.desborde + "px. Los que se salen:" +
+          m.culpables.map((c) =>
+            "\n      " + c.etiqueta + "  (" + c.ancho + "px, llega a " + c.derecha + ")" +
+            (c.texto ? "  \"" + c.texto + "\"" : "")
+          ).join("")
+        );
+      }
       if (errores.length) {
         problemas.push("  " + donde + ": " + errores.length + " errores de consola: " + errores[0]);
         errores = [];

@@ -80,11 +80,24 @@ const variantes = cva(
 );
 
 export interface BotonProps
-  extends React.ButtonHTMLAttributes<HTMLButtonElement>,
+  extends Omit<React.ButtonHTMLAttributes<HTMLButtonElement>, "type">,
     VariantProps<typeof variantes> {
   /** Se pinta como el elemento que contiene, para que un `<Link>` pueda
-   *  llevar la misma piel que un `<button>` sin dos implementaciones. */
-  como?: React.ComponentProps<typeof Slot>;
+   *  llevar la misma piel que un `<button>` sin dos implementaciones.
+   *
+   *  El tipo es `ElementType` y no `ComponentProps<typeof Slot>` a
+   *  propósito: con el otro, TypeScript exige que el componente que se
+   *  pasa sea un `Slot` —o algo con exactamente las mismas propiedades—
+   *  y un `<Link>` de Next no lo es. Compila el `Button` por su cuenta,
+   *  pero en cuanto alguien pone `como={Link}` da un error que habla de
+   *  propiedades y no de lo que se está haciendo. */
+  como?: React.ElementType;
+  /** Para cuando `como` es un enlace. Un `<button>` normal lo ignora. */
+  href?: string;
+  /** El tipo del boton, o lo que haga el `como`. Declarado aparte
+   *  porque `Omit` lo quita de los atributos del boton. Es lo que hace
+   *  que un boton dentro de un formulario no lo envie por sorpresa. */
+  type?: "button" | "submit" | "reset";
   /** While it saves. The label is kept, and only the size changes: swapping
    *  it for "…" makes the button narrower mid-press, and the finger that
    *  was already on its way misses. */

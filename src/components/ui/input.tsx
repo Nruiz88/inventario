@@ -132,16 +132,64 @@ export const Area = React.forwardRef<
 });
 Area.displayName = "Area";
 
-export function Etiqueta({
+/* =========================================================
+   La casilla
+   ---------------------------------------------------------
+   ── POR QUÉ NO ES UN `<input type="checkbox">` SUELTO ──
+
+   Una casilla por defecto mide unos 13 píxeles. Es un blanco pequeño:
+   se ve, pero pulsarla con el dedo es acertar. Y `capturar.js` la
+   llevaba marcando como problema en las dos capturas de `ventas` desde
+   el principio, con el tamaño exacto, que es la clase de hallazgo que
+   no se ve leyendo el código.
+
+   Aquí la casilla se agranda y, sobre todo, **la etiqueta es lo que se
+   pulsa**: el `<label>` mide lo que mide el objetivo táctil, así que
+   pulsar en la palabra cuenta igual que pulsar en la casilla.
+
+   ── EL `accent-color` ──
+
+   Pinta la casilla con el color de la marca sin tocar el
+   `appearance`, que es lo que hace que siga siendo una casilla nativa
+   en lugar de un rectángulo dibujado. La nativa es la que el sistema
+   sabe pulsar con el dedo y la que funciona con el lector de pantalla.
+   ========================================================= */
+export function Casilla({
+  etiqueta,
   className,
   ...props
-}: React.LabelHTMLAttributes<HTMLLabelElement>) {
+}: Omit<React.InputHTMLAttributes<HTMLInputElement>, "type"> & { etiqueta: string }) {
   return (
     <label
       className={cn(
-        "block text-[0.7rem] font-bold tracking-[0.08em] uppercase text-apagado",
-        className
+        /* El objetivo táctil va en el label, no en el input. El input
+           se queda pequeño y el label es el que cubre los 36 px. */
+        "flex min-h-[2.25rem] cursor-pointer items-center gap-2.5 text-sm text-apagado transicion hover:text-texto",
+        "focus-within:text-texto"
       )}
+    >
+      <input
+        type="checkbox"
+        style={{ accentColor: "var(--color-acento)", width: 18, height: 18, flex: "none" }}
+        className={cn("cursor-pointer", className)}
+        {...props}
+      />
+      {etiqueta}
+    </label>
+  );
+}
+
+/* ── El esqueleto ──
+   Un hueco con la forma de lo que va a llegar, mostrado mientras se
+   espera. Es mejor que un spinner por una razón concreta: en un
+   mostrador lo que se mira es la tabla, y con un spinner hay un hueco
+   y después una tabla: dos cambios de forma. Con el esqueleto hay un
+   hueco y después una tabla con la misma forma. */
+export function Esqueleto({ className, ...props }: React.HTMLAttributes<HTMLDivElement>) {
+  return (
+    <div
+      aria-hidden
+      className={cn("animate-pulse rounded-md bg-panel-2", className)}
       {...props}
     />
   );
