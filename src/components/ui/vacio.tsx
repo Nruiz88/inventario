@@ -1,4 +1,4 @@
-import type { HTMLAttributes } from "react";
+import type { HTMLAttributes, ReactNode } from "react";
 import { cn } from "@/lib/utils";
 
 /* =========================================================
@@ -31,8 +31,9 @@ import { cn } from "@/lib/utils";
 export function Vacio({
   className,
   children,
+  accion,
   ...props
-}: HTMLAttributes<HTMLDivElement>) {
+}: HTMLAttributes<HTMLDivElement> & { accion?: ReactNode }) {
   return (
     <div
       className={cn(
@@ -42,6 +43,12 @@ export function Vacio({
       {...props}
     >
       {children}
+
+      {/* El botón va debajo del texto y no al lado. En el hueco de un
+          listado, un «nuevo producto» a la derecha de «no hay
+          productos» se lee como una acción de la fila de al lado, que
+          es justo lo que un hueco no es. */}
+      {accion && <div className="mt-3 flex justify-center">{accion}</div>}
     </div>
   );
 }

@@ -120,6 +120,13 @@ export async function GET(request: Request) {
         id: p.id,
         nombre: p.nombre,
         categoria: p.categoria,
+        /* El `activo` del PRODUCTO va junto con el de la variante.
+
+           Faltaba, y sin él el filtro «inactivos» del listado no puede
+           contar bien: hay que distinguir una presentación dada de baja
+           de un producto entero dado de baja. Los dos se desactivan con
+           la misma operación y solo uno se ve con lo que se mandaba. */
+        activo: p.activo,
         variantes: [],
       });
     }

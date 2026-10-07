@@ -29,12 +29,27 @@ que faltaron, el coste fue un día entero perdido en un fichero roto.
 
 ## 1. Los comentarios se escriben en castellano, y se comprueba
 
-`db/ver-idioma.js` busca cirílico, griego, hebreo, árabe, devanagari y
-chino, más el símbolo de reemplazo. Va antes de vitest en `npm test`.
+`db/ver-idioma.js` busca cirílico, griego, hebreo, árabe, devanagari,
+chino, **coreano y japonés**, más el símbolo de reemplazo. Va antes de
+vitest en `npm test`.
 
 Está porque se colaron **diez veces**: cinco en código que ya existía y
 cinco en comentarios que estaba escribiendo esa misma tarde. Ninguna
 compilaba mal. Solo se ve leyendo, y "raro" no es un filtro fiable.
+
+**Y se colaron tres más en la sesión de `productos`, con el filtro
+funcionando.** La lista de alfabetos era la que se le había ocurrido a
+quien lo escribió, no la que hace falta. Un filtro con la lista que le
+conviene a quien lo hizo es la forma más discreta de que el filtro no
+sirva: no da ningún aviso, da la sensación de que todo está revisado.
+
+Por eso el script que quita un trozo de otro idioma **no puede
+teclearlo**: se localiza por un ancla en ASCII y la letra se nombra con
+`new RegExp("\\uac00-\\ud7af", "g")`. Teclear el carácter para borrarlo es
+justo el error que delata. Y todos esos scripts son de un solo uso: se
+borran después de que han hecho su trabajo, porque un script de
+limpieza que se queda es un script que se vuelve a ejecutar sin querer
+contra un fichero que ya no tiene nada que limpiar.
 
 **No escribas nunca un trozo de otro idioma ni para citarlo como
 ejemplo de lo que no hay que escribir.** Casa por el ancla en ASCII, y
@@ -97,6 +112,13 @@ Ya pasó dos veces: marcaba como rota una casilla que ya estaba arreglada
 —medía el `input` cuando el objetivo real era su `label`— y marcaba
 pestañas que se desplazan dentro de un contenedor con scroll.
 
+**Y hay que mirar lo que NO marca.** En `productos` la captura dio «sin
+desbordes ni objetivos pequeños» y aun así la tarjeta de móvil no
+servía: los importes salían apilados sin nombre y era ilegible. Eso no
+lo puede ver un medidor de desbordes, porque la página no se sale de la
+pantalla. La captura dice que la pantalla no se rompe; no dice que se
+pueda leer.
+
 ## 6. `capturas/` está en `.gitignore`
 
 Son datos del cliente de prueba. No se suben.
@@ -142,9 +164,18 @@ También hay un `allowScripts` en `package.json` porque el `.npmrc` del
 usuario tiene `allow-scripts=all` y npm 12 lo rechaza en instalaciones
 locales. Avisa en cada `npm install`; no es un error.
 
-**Migradas:** `marco.tsx` (navegación que se desliza en móvil) y
-`resumen.tsx`. `productos`, `ventas`, `compras`, `caja` y `cuentas`
-siguen con estilos en línea.
+**Migradas:** `marco.tsx` (navegación que se desliza en móvil),
+`resumen.tsx` y **el listado de `productos.tsx`**. `ventas`,
+`compras`, `caja` y `cuentas` siguen con estilos en línea, y sus
+modales también.
+
+**Los modales de productos están fuera.** `Formulario`, `MoverStock`,
+`Baja` y `Capa` viven en `productos-form.tsx`, y `caja`, `compras` y
+`cuentas` importan `Capa` de ahí. Los tipos (`Producto`, `Variante`)
+también, para que la dependencia vaya en un solo sentido: si vivieran
+en `productos.tsx`, `productos-form.tsx` lo importaría y `productos.tsx`
+importaría los modales, y un ciclo entre los dos compila hoy y rompe en
+cuanto uno de los dos crece.
 
 **`/api/resumen`** hacía cinco idas y venidas en serie; ahora las ocho
 consultas salen en un solo `await`. Manda un `Server-Timing` con el
@@ -160,44 +191,64 @@ desglose por consulta; se lee con `npm run tiempos`.
 
 # Lo que sigue, en este orden
 
-## 1. Extraer los modales de `productos.tsx`
+## 1. ~~Extraer los modales de `productos.tsx`~~ — hecho
 
-**Esto es lo primero y es lo que desbloquea todo lo demás.**
+Están en `productos-form.tsx`, sin cambios de comportamiento. Lo mismo
+para `ventas.tsx`, `caja.tsx`, `cuentas.tsx` y `compras.tsx`.
 
-`productos.tsx` tiene 1000 líneas: el listado y, en el mismo fichero,
-los modales `Formulario`, `MoverStock`, `Baja` y `Capa` —430 líneas que
-usan la API vieja.
+## 2. ~~El listado de productos~~ — hecho
 
-**Una pantalla no se puede migrar por partes si los modales viven en el
-mismo fichero**, porque los dos sistemas comparten nombres: `Boton`,
-`Campo`, `Pastilla`, `Vacio` y `Fila`. Se intentó y dio quince errores de
-tipo, el peor que `Formulario` usa `Fila` como tipo de sus datos y el
-nuevo de fila le pisa el suyo. Se revertió.
-
-Sacar los modales a `productos-form.tsx` deja cada pieza con una sola
-API y permite verificar pantalla por pantalla. Lo mismo para `ventas.tsx`,
-`caja.tsx`, `cuentas.tsx` y `compras.tsx`.
-
-## 2. El listado de productos
-
-Ya está diseñado, que es lo que costó:
+Lo que estaba diseñado, y además cuatro cosas que estaban rotas y que
+solo se vieron al mirar la pantalla con datos:
 
 - **Una fila por variante**, con el producto como columna y no como
-  encabezado de grupo: un encabezado de grupo impide ordenar, y ordenar
-  es lo que hace contestable «dame lo más barato primero».
-- Columnas: producto, SKU, venta, coste, **margen** y stock. Ordenables
-  con `aria-sort`.
+  encabezado de grupo.
+- Columnas: producto, SKU, venta, coste, **margen** y stock. Ordenables,
+  con el `aria-sort` en el `<th>` y no en el botón de dentro.
 - **En el stock, las tres cosas juntas**: cuántas hay, si hay que
   reponer, y cuántas faltan.
-- Filtros en botones: todos / por reponer / sin existencias / inactivos,
-  cada uno con su contador **contado con el mismo criterio que el
-  filtro**, no con el de la lista entera.
+- Filtros en botones con su contador, cada uno contado con su propio
+  predicado y no con el de la lista entera.
 - Cuatro cifras arriba: valor en almacén, por debajo del mínimo con el
   **coste de la reposición**, sin existencias, y presentaciones.
 
-El problema que resuelve: el listado actual es una caja por producto y
-**no se pueden comparar precios**, porque las cajas no comparten
-columnas. Comparar es la razón de ser de una tabla de inventario.
+### Lo que estaba roto y no se veía leyendo
+
+1. **El botón de «Nuevo producto» solo existía dentro del hueco
+   vacío.** Con diez productos no había forma de crear uno desde la
+   pantalla: se llegaba al alta por el botón del `Vacio`, y ese botón
+   solo sale el primer día. Ahora está en la cabecera, siempre.
+2. **No había forma de poner el mínimo de stock en el alta.** El estado
+   del formulario lo tenía y el POST lo mandaba, pero el campo no
+   existía. Todo producto creado desde la pantalla salía con
+   `stock_minimo = 0`, y con mínimo cero la condición del filtro «por
+   reponer» (`stock <= mínimo`) no tiene nada que mirar: un producto
+   nuevo nunca salía entre los que hay que comprar.
+3. **La tecla `Esc` no cerraba los modales.** `Capa` era un overlay
+   hecho a mano, sin teclado. Afectaba a las cuatro pantallas que la
+   importan. Ahora cierra con `Esc`, avisa el nombre del diálogo y
+   devuelve el foco a donde estaba.
+4. **La tarjeta de móvil apilaba los importes sin nombre.** `$1,50` y
+   `$0,80` uno debajo del otro, sin decir cuál es el de venta y cuál el
+   de costo — que es el error que el propio fichero declara como el más
+   caro de un inventario. Los `data-col` de las cifras pasan a llevar
+   nombre, y el de la tabla ancha no cambia: en la tabla los nombres los
+   pone la cabecera.
+
+### Lo que se comprobó, y cómo
+
+Tres scripts nuevos, porque leer el código no dice si un contador
+cuadra:
+
+- `npm run test:listado` — los cuatro filtros, sus contadores y el
+  orden, en la página de verdad. Los contadores se comparan con lo que
+  devuelve la API, no con un número escrito a mano.
+- `npm run test:modales` — los cuatro modales abren, guardan, avisan
+  antes de guardar lo que la base va a rechazar, y cierran.
+- `npm run test:consola` — los errores de consola enteros. `capturar.js`
+  los corta a 80 caracteres, y con eso un fallo de hidratación salía
+  como «Hydration failed…» sin decir dónde. Ese fallo era real: el
+  servidor de desarrollo llevaba un rato sirviendo un `vacio.tsx` viejo.
 
 ## 3. La pantalla de movimientos — el agujero de fondo
 
@@ -216,6 +267,18 @@ qué está en camino ni qué hay que pedir la semana que viene.
 `node db/demo-kiosco.mjs --limpiar`. Está en `.gitignore` sus
 capturas, pero los datos de la base no se limpian solos.
 
+Y hay un segundo tipo de basura: **los productos que dejan las pruebas
+de los modales**. `npm run test:modales` crea uno para comprobar que el
+alta funciona, y lo borra al terminar con `npm run limpiar:prueba`.
+
+**El borrado va por script y no por la API, y no es por gusto.** La API
+tiene una regla a propósito: un producto con movimientos no se borra, se
+desactiva. Y un producto creado con stock genera un movimiento de
+entrada. O sea, que si la prueba pide el borrado por la API, su producto
+se queda en la base para siempre como una fila inactiva, y la corrida
+siguiente falla por su culpa y no por la del código. Eso pasó tres
+veces seguidas antes de entenderlo.
+
 ---
 
 # Sobre medir antes de afirmar
@@ -231,6 +294,19 @@ la base en vez de una.
 **«Las pantallas no cargan.»** `resumen` y `compras` no se quedaban en
 «Cargando» por un bucle de `useEffect`, que era la hipótesis, sino
 porque la captura esperaba 900 ms fijos y esa ruta tarda más.
+
+**«El detector de idioma pasa, así que está bien.»** Pasaba con dos
+letras chinas en el mismo fichero que llevaba diez minutos escribiendo,
+y con un Hangul de coreano dentro de un párrafo sobre la tecla `Esc`,
+que el detector no miraba porque el coreano no estaba en su lista. No es
+que el filtro fallara: es que la lista era la que se le había ocurrido a
+quien lo escribió.
+
+Lo del coreano tiene además una moraleja para este mismo fichero: la
+letra que cito aquí no se puede escribir, y por eso se nombra por su
+nombre. En `.md` no hay forma de poner `\\uac00` en un ejemplo sin que se
+vea el escape, que tampoco sirve. Cada fichero tiene que decirlo con lo
+que tiene.
 
 Regla: **si una cifra viene de una primera petición, di que es de
 arranque o no la digas.** Y antes de dar un bug por real, tener un test

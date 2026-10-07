@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useApi } from "@/lib/ui/datos";
 import { dinero, aCentavos } from "@/lib/dinero";
 import { Panel, Boton, Campo, Pastilla, Vacio, color, tipografia, Cifra } from "@/lib/ui/controles";
-import { Capa } from "@/components/productos";
+import { Capa } from "@/components/productos-form";
 
 /* =========================================================
    /cuentas — las cuentas corrientes

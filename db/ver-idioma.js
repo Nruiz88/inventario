@@ -42,6 +42,22 @@ const ALFABETOS = [
   { nombre: "árabe", patron: "[\\u0600-\\u06ff]" },
   { nombre: "devanagari", patron: "[\\u0900-\\u097f]" },
   { nombre: "chino", patron: "[\\u2e80-\\u9fff\\uf900-\\ufaff\\uff00-\\uffef]" },
+
+  /* El coreano y el japonés, añadidos después de que se colara un
+     «여기» —un Hangul de.coreano— dentro de un párrafo sobre la tecla
+     `Esc`, y porque la lista se había quedado corta: los seis
+     alfabetos de arriba son los que se cuentan en el mundo, no los que
+     se pueden teclear.
+
+     Elkana va con el chino porque comparte el rango de Extensión A y
+     el de medio ancho, pero por si acaso va en su propia entrada con su
+     propio nombre: quien lo vea en un aviso sabe de una qué ha pasado.
+
+     Esto es lo que avisa la regla 1 del `ENTREGA.md`: que el filtro
+     tenga la lista que le conviene a quien lo escribió es la forma
+     más discreta de que el filtro no sirva. */
+  { nombre: "coreano", patron: "[\\uac00-\\ud7af\\u1100-\\u11ff\\u3130-\\u318f]" },
+  { nombre: "japonés", patron: "[\\u3040-\\u30ff]" },
 ];
 
 /* El símbolo de reemplazo: indica que algo se leyó con otra codificación
