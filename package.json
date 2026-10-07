@@ -18,7 +18,10 @@
     "dev:ticket": "node db/dev-ticket.mjs",
     "limpiar:pruebas": "node db/limpar-pruebas.js",
     "abrir": "node db/abrir.mjs",
-    "test:imagen": "node db/probar-imagen.mjs"
+    "test:imagen": "node db/probar-imagen.mjs",
+    "capturar": "node capturar.js",
+    "test:efectos": "node db/ver-efectos.js",
+    "sonda": "node sonda.js"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.45.0",
